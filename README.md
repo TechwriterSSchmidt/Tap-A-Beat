@@ -1,8 +1,7 @@
-# Takt-O-Beat
+# Tap-O-Beat
+ A small, tactilely satisfying, ear-triggering mini metronome for the person I care about.
 
-> A small, tactilely satisfying, ear-triggering mini metronome for the person I care about.
-
-**Takt-O-Beat** is an ESP32-S3 based digital metronome packed with features in a compact form factor. It is designed to be responsive, precise, and a joy to use.
+The device is an ESP32-S3 based digital metronome packed with features in a compact form factor. It is designed to be responsive, precise, and a joy to use.
 
 ## Features
 
@@ -38,6 +37,23 @@
 2. **Open in VS Code** with the PlatformIO extension installed.
 3. **Check `include/config.h`** to match your specific wiring.
 4. **Build and Upload** to your ESP32-S3 board.
+
+## Operation
+
+- **Metronome**
+  - Rotate encoder: adjust BPM (30–300), lower bar shows current beat.
+  - Short press encoder: start/stop.
+  - Press and rotate: adjust volume quickly.
+- **Tap Tempo (Mic)**
+  - In metronome view, tap the enclosure or clap; multiple taps are averaged to set BPM.
+- **Tuner**
+  - Menu → Tuner. Short press toggles A4 reference tone; adjust A4 (400–480 Hz) with encoder while the tone plays. AGC stabilizes mic input.
+- **Presets**
+  - Menu → Load/Save Preset → pick slot (1–3) with encoder, short press to confirm. Stored: BPM, time signature, volume, A4.
+- **Haptics**
+  - Every beat triggers a PWM pulse (accent uses higher duty). Configure pin/frequency/channel in `config.h`, duty/pulse length in `src/main.cpp`.
+- **Persistence**
+  - BPM, time signature, volume, and A4 persist in NVS and reload on boot.
 
 ## Future Ideas
 

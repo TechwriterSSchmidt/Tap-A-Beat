@@ -16,8 +16,7 @@ public:
     // isAccent: true = Higher Pitch (Downbeat/One), false = Lower Pitch
     void playClick(bool isAccent);
     
-    // Play a continuous tone (blocking? NO, needs loop support)
-    // For Takt-O-Beat, we will use a simple "fillBuffer" approach called from main loop for Tone.
+    // Play a continuous tone (non-blocking, buffer filled from main loop).
     void startTone(float frequency);
     void stopTone();
     void updateTone(); // Call in loop when tone is active

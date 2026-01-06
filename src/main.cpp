@@ -223,7 +223,7 @@ void setup() {
     lastEncoderValue = encoder.getCount() / 2;
     
     lastActivityTime = millis();
-    Serial.println("Takt-O-Beat Ready.");
+    Serial.println("Tap-A-Beat Ready.");
 }
 
 void loop() {
