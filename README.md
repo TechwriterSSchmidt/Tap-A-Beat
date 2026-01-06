@@ -7,11 +7,20 @@
 ## Features
 
 - **Precise Timing:** Drifts are negligible thanks to the ESP32-S3's dual-core architecture.
-- **High-Quality Audio:** High-fidelity metronome clicks via I2S digital audio (MAX98357A Amp).
-- **Tactile Control:** An industrial-feel incremental rotary encoder handles BPM adjustments, start/stop, and menu navigation.
+- **High-Quality Audio:** 
+  - High-fidelity metronome clicks via I2S digital audio (MAX98357A Amp).
+  - Distinct sounds for **Upbeat** (High pitch) and **Downbeat** (Low pitch).
+  - Digital Volume control.
+- **Tactile Control:** An industrial-feel incremental rotary encoder handles:
+  - BPM adjustments.
+  - Volume control.
+  - Menu navigation.
 - **Smart Inputs:** 
   - **Tap-Tempo:** Tap the case or snap your fingers to set the tempo (via I2S Mic).
-  - **Tuner:** Built-in chromatic tuner functionality using real-time FFT analysis.
+  - **Tuner (Submenu):** Built-in chromatic tuner functionality using real-time FFT analysis.
+- **Advanced Rhythm:** 
+  - Support for complex time signatures (e.g., 5/4, 7/8).
+  - Visual Beat indicator on display.
 - **Crisp Display:** 128x128 pixel OLED display for high-contrast visibility in any lighting.
 - **Portable:** Powered by a LiPo battery with built-in charging management.
 

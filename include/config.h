@@ -24,3 +24,4 @@
 
 // --- power management -------------------------------------------------------
 #define BATTERY_PIN   1  // Analog pin for voltage divider
+#define AUTO_OFF_MS   120000 // 2 Minutes
