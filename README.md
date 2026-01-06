@@ -1,35 +1,43 @@
-# Tap-O-Beat
- A small, tactilely satisfying, ear-triggering mini metronome for the person I care about.
+# Tap-A-Beat
+A professional, tactile, and highly precise digital metronome and multi-tool for musicians.
 
-The device is an ESP32-S3 based digital metronome packed with features in a compact form factor. It is designed to be responsive, precise, and a joy to use.
+Tap-A-Beat is an ESP32-S3 based device designed for reliability and responsiveness. It combines a high-precision audio engine with tactile feedback, visual cues, and essential practice tools like a chromatic tuner.
 
 ## Features
 
-- **Precise Timing:** ESP32-S3 based metronome with negligible drift and visual beat indicator.
-- **Controlled Audio:** Soft start/stop envelope, limiter with overdrive flag, distinct accent/normal clicks, and digital volume.
-- **Smart Inputs:** Tap-tempo via I2S mic, debounced encoder button, and press-turn volume adjustment.
-- **Tuner:** Chromatic tuner with A4-adjustable reference and automatic mic gain (AGC).
-- **Persistence & Presets:** BPM, time signature, volume, and A4 stored in NVS; three user presets for quick recall/save.
-- **Haptics:** PWM haptic pulse on every beat, accent-aware intensity.
-- **Display:** 128x128 OLED UI (SH1107/SSD1327) for metronome, tuner, menus, and preset selection.
+- **Precise Timing:** Multithreaded audio engine (dedicated core) for drift-free timing, independent of UI updates.
+- **Natural Sound:** Synthesized "Woodblock" click sound for a pleasant, organic practicing experience.
+- **Visual Feedback:** 
+  - **OLED:** Large, easy-to-read beat counter with accent framing.
+  - **LED:** WS2812/NeoPixel support (Red=Accent, Blue=Beat).
+- **Haptic Feedback:** Integrated PWM haptic engine for silent practice with distinct accent pulses.
+- **Smart Inputs:** 
+  - **Tap Tempo:** Set BPM by tapping the enclosure (via built-in mic) or clapping.
+  - **Encoder:** Debounced rotary control with "Press-and-Turn" volume shortcut.
+- **Tuner:** Full chromatic tuner with adjustable A4 reference (400–480Hz) and AGC (Automatic Gain Control) for stable detection.
+- **Persistence & Presets:** Automatically saves settings; **5 User Presets** for quick set-list changes.
+- **Power Management:** Deep sleep auto-off with wake-on-button.
 
 ## Hardware Stack
 
-| Component | Model | Purpose |
+| Component | GPIO | Purpose |
 | :--- | :--- | :--- |
-| **MCU** | ESP32-S3 (DevKit-C / Lolin S3) | Brains & Processing |
-| **Audio Out** | MAX98357A I2S Amplifier | Driving the speaker |
-| **Speaker** | 4Ω / 3W Speaker | Making noise |
-| **Audio In** | INMP441 I2S Microphone | Capturing Taps & Tuning |
-| **Display** | 1.12" OLED (SH1107/SSD1327) | UI (I2C) |
-| **Input** | Rotary Encoder (EC11) | User Interface |
-| **Power** | LiPo Battery (e.g., 1000mAh) | Portable power |
+| **MCU** | - | ESP32-S3 (DevKit-C) |
+| **Audio Out** | 16/17/18 | MAX98357A I2S Amplifier |
+| **Microphone** | 10/11/12 | INMP441 I2S Microphone |
+| **Display** | 41/42 | 128x128 OLED (I2C) |
+| **Encoder** | 4/5/6 | Rotary Encoder (EC11) |
+| **Haptics** | 7 | Vibration Motor (PWM) |
+| **LED** | 48 | WS2812 / NeoPixel |
+| **Battery** | 1 | Voltage Divider (ADC) |
 
 ## Project Structure
 
-- `src/main.cpp`: Main application logic.
-- `include/config.h`: Pin definitions and hardware configuration.
-- `platformio.ini`: Dependency management and build environment settings.
+- `src/main.cpp`: Main application logic, UI, and state machine.
+- `src/AudioEngine.cpp`: High-priority I2S audio task and synthesis.
+- `include/config.h`: Central pin mapping and configuration.
+- `docs/project-schematics.txt`: Wiring guide.
+- `platformio.ini`: Dependency management.
 
 ## Getting Started
 
@@ -40,22 +48,28 @@ The device is an ESP32-S3 based digital metronome packed with features in a comp
 
 ## Operation
 
-- **Metronome**
-  - Rotate encoder: adjust BPM (30–300), lower bar shows current beat.
-  - Short press encoder: start/stop.
-  - Press and rotate: adjust volume quickly.
-- **Tap Tempo (Mic)**
-  - In metronome view, tap the enclosure or clap; multiple taps are averaged to set BPM.
-- **Tuner**
-  - Menu → Tuner. Short press toggles A4 reference tone; adjust A4 (400–480 Hz) with encoder while the tone plays. AGC stabilizes mic input.
+- **Metronome Mode**
+  - **Start/Stop:** Short press encoder.
+  - **Set BPM:** Rotate encoder.
+  - **Set Volume:** Press and hold button while rotating.
+  - **Tap Tempo:** With playback stopped, tap the case rhythmically.
+  - **Menu:** Long press encoder.
+- **Tuner Mode**
+  - Displays Note, Frequency, and deviation (Cents).
+  - Short press enables A4 reference tone (rotate to adjust frequency).
 - **Presets**
-  - Menu → Load/Save Preset → pick slot (1–3) with encoder, short press to confirm. Stored: BPM, time signature, volume, A4.
-- **Haptics**
-  - Every beat triggers a PWM pulse (accent uses higher duty). Configure pin/frequency/channel in `config.h`, duty/pulse length in `src/main.cpp`.
-- **Persistence**
-  - BPM, time signature, volume, and A4 persist in NVS and reload on boot.
+  - Navigate to **Load Preset** or **Save Preset** in the menu.
+  - Select one of 5 slots.
+- **Haptics & LED**
+  - Haptic feedback on beats.
+  - NeoPixel LED indicates beats (Red=Accent, Blue=Weak).
+- **Deep Sleep**
+  - System enters deep sleep after inactivity. Press button to wake.
 
 ## Future Ideas
 
-- [ ] Alternate click voices (woodblock/beep/drum).
-- [ ] Visual pendulum animation.
+- [x] Natural Woodblock Sound.
+- [x] Visual Beat Counter.
+- [x] Multithreading Audio.
+- [ ] Poly-rhythm support.
+- [ ] Wi-Fi sync (Link).

@@ -104,9 +104,8 @@ void enterDeepSleep() {
     u8g2.setPowerSave(1); // Screen off
 
     // Wakeup Config
-    // ESP32-S3: Use EXT1 for GPIO wakeup from deep sleep
-    uint64_t mask = (1ULL << ENC_BUTTON);
-    esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ANY_LOW);
+    // ESP32 Classic: Use EXT0 for single pin wakeup on LOW
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)ENC_BUTTON, 0);
 
     Serial.println("Entering Deep Sleep...");
     esp_deep_sleep_start();
