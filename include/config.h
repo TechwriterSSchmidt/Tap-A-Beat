@@ -7,6 +7,16 @@
 #define I2C_SDA_PIN 42  // Adjust to your board
 #define I2C_SCL_PIN 41  // Adjust to your board
 
+// --- visual feedback (WS2812) -----------------------------------------------
+#define WS2812_PIN      48 
+#define WS2812_NUM_LEDS 1
+
+// --- Audio Configuration ----------------------------------------------------
+#define SAMPLE_RATE     44100
+#define NUM_PRESETS     5
+#define AUDIO_TASK_CORE 0
+#define AUDIO_TASK_PRIO 2     // Higher than Loop (1)
+
 // --- audio output (I2S Amp) -------------------------------------------------
 #define I2S_DOUT      16
 #define I2S_BCLK      17
