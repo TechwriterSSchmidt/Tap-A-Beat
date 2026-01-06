@@ -1,44 +1,39 @@
-Lolin S3 / ESP32-S3 DevKit Verdrahtung (3V3 Logik)
+Wemos D32 / ESP32 Classic Verdrahtung (3V3 Logik)
 
 I2C Display
-- GPIO42 (SDA) -> SDA
-- GPIO41 (SCL) -> SCL
+- GPIO21 (SDA) -> SDA
+- GPIO22 (SCL) -> SCL
 
 I2S Mikrofon (INMP441)
-- GPIO12 (BCLK) -> SCK/BCLK
-- GPIO11 (WS)   -> WS/LRCL
-- GPIO10 (SD)   -> SD (Mic Out)
-- L/R-Pad: GND = linker Kanal; VDD = rechter Kanal
+- GPIO18 (SCK) -> SCK/BCLK
+- GPIO23 (WS)  -> WS/LRCL
+- GPIO35 (SD)  -> SD (Mic Out)
+- L/R-Select: GND
 
 I2S Audio-Out (z.B. MAX98357A)
-- GPIO17 (BCLK) -> BCLK
-- GPIO18 (LRC)  -> LRC
-- GPIO16 (DOUT) -> DIN
-- VIN 5V, GND gemeinsam; 100 nF + 100–220 µF am Modul
+- GPIO26 (BCLK) -> BCLK
+- GPIO25 (LRC)  -> LRC
+- GPIO19 (DOUT) -> DIN
+- VIN 5V, GND
 
 Rotary Encoder
-- GPIO4 (A)
-- GPIO5 (B)
-- GPIO6 (Button) -> GND (INPUT_PULLUP, Wake ext1)
+- GPIO33 (A)
+- GPIO32 (B)
+- GPIO27 (Button) -> GND (INPUT_PULLUP)
 
 Extras
-- GPIO7  (Haptik) -> PWM an Vibrationsmotor-Modul / MOSFET
-- GPIO48 (LED)    -> WS2812 / NeoPixel DI
-- GPIO1  (ADC)    -> Batterie-Spannungsteiler (0–3,3 V)
+- GPIO13 (Haptik) -> PWM an Vibrationsmotor-Modul / MOSFET
+- GPIO4  (LED)    -> WS2812 / NeoPixel DI
+- ADC    -> Check Board Defaults
 
-ASCII
-
-                 ESP32-S3 DevKit
+ASCII (Wemos D32 Mapping)
                 +-----------------+
     3V3 --------| 3V3          GND|-------- GND
-                |                 |
-    SDA (disp) -| GPIO42      16  |- Amp DIN
-    SCL (disp) -| GPIO41      17  |- Amp BCLK
-    Mic SD  ----| GPIO10      18  |- Amp LRC
-    Mic WS  ----| GPIO11          |
-    Mic SCK ----| GPIO12          |
-    Enc A   ----| GPIO4           |
-    Enc B   ----| GPIO5           |
-    Enc Btn ----| GPIO6        48 |- NeoPixel DI
-    Haptik PWM -| GPIO7         1 |- Batt ADC
+    Enc Btn ----| 27           13 |-------- Haptik
+    Amp DIN ----| 19           18 |-------- Mic SCK
+    Amp LRC ----| 25           23 |-------- Mic WS
+    Amp BCLK ---| 26           33 |-------- Enc A
+    Mic SD -----| 35           32 |-------- Enc B
+    I2C SDA ----| 21 (SDA)     4  |-------- NeoPixel
+    I2C SCL ----| 22 (SCL)        |
                 +-----------------+
