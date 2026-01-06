@@ -52,8 +52,9 @@ float Tuner::getFrequency() {
     i2s_read(I2S_NUM_1, (void*)i2s_raw_buffer, FFT_SAMPLES * sizeof(int32_t), &bytes_read, portMAX_DELAY);
     
     // Convert to double for FFT & Apply Window
-    // Also basic noise gate
+    // Also basic noise gate + AGC
     double sum = 0;
+    double rms = 0;
     
     for (int i = 0; i < FFT_SAMPLES; i++) {
         // INMP441 is 24-bit left aligned in 32-bit container. 
@@ -63,10 +64,28 @@ float Tuner::getFrequency() {
         int32_t val = i2s_raw_buffer[i];
         // Reduce amplitude?
         val = val >> 14; // Scaling down
-        
-        vReal[i] = (double)val;
+
+        // AGC: track RMS and apply gain
+        rms += (double)val * (double)val;
+        double amplified = (double)val * (double)_agcGain;
+        // prevent runaway
+        if (amplified > 8388607.0) amplified = 8388607.0;
+        if (amplified < -8388608.0) amplified = -8388608.0;
+
+        vReal[i] = amplified;
         vImag[i] = 0;
         sum += abs(val);
+    }
+
+    rms = sqrt(rms / FFT_SAMPLES);
+    if (rms > 1.0) {
+        // adjust gain gently toward target
+        const float target = 8000.0f;
+        float desired = target / (float)rms;
+        // smooth the change to avoid pumping
+        _agcGain = _agcGain * 0.9f + desired * 0.1f;
+        if (_agcGain < 0.01f) _agcGain = 0.01f;
+        if (_agcGain > 64.0f) _agcGain = 64.0f;
     }
     
     // Noise Gate
@@ -77,8 +96,8 @@ float Tuner::getFrequency() {
     // Perform FFT
     // Note: arduinoFFT v1.x API
     FFT = arduinoFFT(vReal, vImag, FFT_SAMPLES, MIC_SAMPLE_RATE);
-    FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_DIR_FORWARD);
-    FFT.Compute(FFT_DIR_FORWARD);
+    FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+    FFT.Compute(FFT_FORWARD);
     FFT.ComplexToMagnitude();
     
     double peak = FFT.MajorPeak(vReal, FFT_SAMPLES, MIC_SAMPLE_RATE);
@@ -93,7 +112,7 @@ String Tuner::getNote(float frequency, int &cents) {
 
     // MIDI Note Calc
     // n = 12 * log2(f / 440) + 69
-    float noteNumFloat = 12.0 * log(frequency / 440.0) / log(2.0) + 69.0;
+    float noteNumFloat = 12.0 * log(frequency / _a4Ref) / log(2.0) + 69.0;
     int noteNum = round(noteNumFloat);
     
     // Cents offset
@@ -108,4 +127,23 @@ String Tuner::getNote(float frequency, int &cents) {
     
     String res = String(noteNames[noteIndex]) + String(octave);
     return res;
+}
+
+float Tuner::readLevel() {
+    if (!_initialized) return 0;
+    size_t bytes_read;
+    const int block = 256;
+    int32_t buf[block];
+    if (i2s_read(I2S_NUM_1, (void*)buf, block * sizeof(int32_t), &bytes_read, 0) != ESP_OK) {
+        return 0;
+    }
+    int samples = bytes_read / sizeof(int32_t);
+    double rms = 0;
+    for (int i = 0; i < samples; i++) {
+        int32_t v = buf[i] >> 14;
+        double amplified = (double)v * (double)_agcGain;
+        rms += amplified * amplified;
+    }
+    if (samples == 0) return 0;
+    return sqrt(rms / samples);
 }

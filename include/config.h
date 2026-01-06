@@ -17,6 +17,11 @@
 #define I2S_MIC_WS    11 // Also called LRC
 #define I2S_MIC_SCK   12 // Also called BCLK
 
+// --- haptics (PWM) ---------------------------------------------------------
+#define HAPTIC_PIN     7
+#define HAPTIC_PWM_FREQ 200
+#define HAPTIC_PWM_CH   3
+
 // --- rotary encoder ---------------------------------------------------------
 #define ENC_PIN_A     4
 #define ENC_PIN_B     5

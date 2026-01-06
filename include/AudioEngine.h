@@ -26,6 +26,12 @@ public:
     void setVolume(uint8_t volume);
     uint8_t getVolume();
 
+    // Overdrive flag (set when limiter clamps); returns and clears flag
+    bool wasOverdriven();
+
+    // Optional beat callback (for haptics)
+    void setBeatCallback(void (*cb)(bool accent)) { _beatCallback = cb; }
+
 private:
     void generateWave(float frequency, int durationMs, float amplitude);
     
@@ -35,6 +41,10 @@ private:
     bool _isTonePlaying = false;
     float _toneFreq = 440.0f;
     float _tonePhase = 0;
+    bool _overdrive = false;
+
+    void (*_beatCallback)(bool accent) = nullptr;
+    int16_t applyLimiter(int32_t sample);
     
     // Pre-calculated buffers could go here, 
     // but generating 50ms of audio on the fly on ESP32-S3 is trivial.

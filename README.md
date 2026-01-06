@@ -6,23 +6,13 @@
 
 ## Features
 
-- **Precise Timing:** Drifts are negligible thanks to the ESP32-S3's dual-core architecture.
-- **High-Quality Audio:** 
-  - High-fidelity metronome clicks via I2S digital audio (MAX98357A Amp).
-  - Distinct sounds for **Upbeat** (High pitch) and **Downbeat** (Low pitch).
-  - Digital Volume control.
-- **Tactile Control:** An industrial-feel incremental rotary encoder handles:
-  - BPM adjustments.
-  - Volume control.
-  - Menu navigation.
-- **Smart Inputs:** 
-  - **Tap-Tempo:** Tap the case or snap your fingers to set the tempo (via I2S Mic).
-  - **Tuner (Submenu):** Built-in chromatic tuner functionality using real-time FFT analysis.
-- **Advanced Rhythm:** 
-  - Support for complex time signatures (e.g., 5/4, 7/8).
-  - Visual Beat indicator on display.
-- **Crisp Display:** 128x128 pixel OLED display for high-contrast visibility in any lighting.
-- **Portable:** Powered by a LiPo battery with built-in charging management.
+- **Precise Timing:** ESP32-S3 based metronome with negligible drift and visual beat indicator.
+- **Controlled Audio:** Soft start/stop envelope, limiter with overdrive flag, distinct accent/normal clicks, and digital volume.
+- **Smart Inputs:** Tap-tempo via I2S mic, debounced encoder button, and press-turn volume adjustment.
+- **Tuner:** Chromatic tuner with A4-adjustable reference and automatic mic gain (AGC).
+- **Persistence & Presets:** BPM, time signature, volume, and A4 stored in NVS; three user presets for quick recall/save.
+- **Haptics:** PWM haptic pulse on every beat, accent-aware intensity.
+- **Display:** 128x128 OLED UI (SH1107/SSD1327) for metronome, tuner, menus, and preset selection.
 
 ## Hardware Stack
 
@@ -51,6 +41,5 @@
 
 ## Future Ideas
 
-- [ ] Save settings (last BPM) to non-volatile storage.
-- [ ] Different click sounds (Woodblock, Beep, Drum).
+- [ ] Alternate click voices (woodblock/beep/drum).
 - [ ] Visual pendulum animation.

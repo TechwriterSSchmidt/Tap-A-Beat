@@ -1,0 +1,42 @@
+Lolin D32 Verdrahtung (3V3 Logik, GND gemeinsam; Amp-VIN 5V erlaubt)
+
+I2C Display
+- GPIO42 (SDA) -> SDA
+- GPIO41 (SCL) -> SCL
+
+I2S Mikrofon (INMP441)
+- GPIO12 (BCLK) -> SCK/BCLK
+- GPIO11 (WS)   -> WS/LRCL
+- GPIO10 (SD)   -> SD (Mic Out)
+- L/R-Pad: GND = linker Kanal; VDD = rechter Kanal
+
+I2S Audio-Out (z.B. MAX98357A)
+- GPIO17 (BCLK) -> BCLK
+- GPIO18 (LRC)  -> LRC
+- GPIO16 (DOUT) -> DIN
+- VIN 5V, GND gemeinsam; 100 nF + 100–220 µF am Modul
+
+Rotary Encoder
+- GPIO4 (A)
+- GPIO5 (B)
+- GPIO6 (Button) -> GND (INPUT_PULLUP, Wake ext1)
+
+Batterie-Messung
+- GPIO1 (ADC) -> Spannungsteiler-Ausgang (0–3,3 V)
+
+ASCII
+
+				 Lolin D32 (ESP32)
+				+-----------------+
+	3V3 --------| 3V3          GND|-------- GND
+				|                 |
+	SDA (disp) -| GPIO42      16  |- Amp DIN
+	SCL (disp) -| GPIO41      17  |- Amp BCLK
+	Mic SD  ----| GPIO10      18  |- Amp LRC
+	Mic WS  ----| GPIO11          |
+	Mic SCK ----| GPIO12          |
+	Enc A   ----| GPIO4           |
+	Enc B   ----| GPIO5           |
+	Enc Btn ----| GPIO6           |
+	Batt div ---| GPIO1 (ADC)     |
+				+-----------------+

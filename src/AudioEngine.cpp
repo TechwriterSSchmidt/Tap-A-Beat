@@ -36,6 +36,12 @@ uint8_t AudioEngine::getVolume() {
     return _volume;
 }
 
+bool AudioEngine::wasOverdriven() {
+    bool o = _overdrive;
+    _overdrive = false;
+    return o;
+}
+
 void AudioEngine::stopTone() {
     _isTonePlaying = false;
     i2s_zero_dma_buffer(I2S_NUM_0);
@@ -61,10 +67,22 @@ void AudioEngine::updateTone() {
     float phaseIncrement = (2.0f * PI * _toneFreq) / (float)SAMPLE_RATE;
     float volFactor = (float)_volume / 100.0f;
 
+    // Simple soft start/stop envelope (short fade avoids clicks) and limiter
+    float fadeLen = 0.005f; // 5 ms fade window
+    float samplesPerFade = SAMPLE_RATE * fadeLen;
     for (int j = 0; j < chunkSamples; j++) {
-        float val = sin(_tonePhase) * 32767.0f * volFactor;
-        samples_data[j*2] = (int16_t)val;
-        samples_data[j*2+1] = (int16_t)val;
+        float env = 1.0f;
+        if (j < samplesPerFade) {
+            env = (float)j / samplesPerFade;
+        } else if (j > chunkSamples - samplesPerFade) {
+            env = (float)(chunkSamples - j) / samplesPerFade;
+            if (env < 0) env = 0;
+        }
+
+        float val = sin(_tonePhase) * 32767.0f * volFactor * env;
+        int16_t s = applyLimiter((int32_t)val);
+        samples_data[j*2] = s;
+        samples_data[j*2+1] = s;
         
         _tonePhase += phaseIncrement;
         if (_tonePhase > 2.0f * PI) _tonePhase -= 2.0f * PI;
@@ -85,6 +103,7 @@ void AudioEngine::playClick(bool isAccent) {
     int durationMs = 40; // Short precise click
     
     generateWave(freq, durationMs, (float)_volume / 100.0f);
+    if (_beatCallback) _beatCallback(isAccent);
 }
 
 void AudioEngine::generateWave(float frequency, int durationMs, float amplitude) {
@@ -113,9 +132,10 @@ void AudioEngine::generateWave(float frequency, int durationMs, float amplitude)
             float envelope = pow(1.0f - t, 4.0f); // Fast decay
             
             float val = sin(phase) * 32767.0f * amplitude * envelope;
+            int16_t s = applyLimiter((int32_t)val);
             
-            samples_data[j*2] = (int16_t)val;     // Left
-            samples_data[j*2+1] = (int16_t)val;   // Right
+            samples_data[j*2] = s;     // Left
+            samples_data[j*2+1] = s;   // Right
             
             phase += phaseIncrement;
             if (phase > 2.0f * PI) phase -= 2.0f * PI;
@@ -133,4 +153,20 @@ void AudioEngine::generateWave(float frequency, int durationMs, float amplitude)
     // Let's write a tiny buffer of zeros.
      int16_t silence[64] = {0};
      i2s_write(I2S_NUM_0, silence, sizeof(silence), &bytes_written, 10);
+}
+
+int16_t AudioEngine::applyLimiter(int32_t sample) {
+    const int32_t softLimit = 28000; // ~-1 dBFS
+    if (sample > softLimit) {
+        _overdrive = true;
+        sample = softLimit + (sample - softLimit) / 4; // soft knee
+    } else if (sample < -softLimit) {
+        _overdrive = true;
+        sample = -softLimit + (sample + softLimit) / 4;
+    }
+
+    // Final hard clamp to int16 range
+    if (sample > 32767) sample = 32767;
+    if (sample < -32768) sample = -32768;
+    return (int16_t)sample;
 }
