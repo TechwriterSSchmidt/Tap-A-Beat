@@ -68,13 +68,29 @@ void AudioEngine::startTone(float frequency) {
     _isTonePlaying = true;
 }
 
-void AudioEngine::playClick(bool isAccent) {
+void AudioEngine::playClick(bool isAccent, bool isSubdivision) {
     // Signal the task
     _triggerClickAccent = isAccent;
+    _triggerClickSub = isSubdivision;
     _triggerClick = true;
     
     // Fire callback for haptics/LED immediately (UI thread)
+    // Only fire main beat callback for normal beats, or maybe implement a separate one?
+    // Current design: Haptics fire on every 'playClick'.
+    // We update callback to only fire HARD on beats, SOFT on subs?
+    // User requested features 1, 2, 3, 5. 2 is Subdivisions.
     if (_beatCallback) {
+        // If it's a subdivision, we might want weaker feedback?
+        // For now, pass 'accent' state as false for Subdivisions, but maybe we need a param.
+        // Actually, main.cpp handles haptics based on 'accent' param.
+        // If we pass false, it gives a normal beat pulse.
+        // Subdivision should probably be NO haptics or very weak?
+        // Let's rely on main.cpp logic.
+        // If it is subdivision -> treat as non-accent? Or handle logic there?
+        // Let's just modify the callback signature? No, that breaks main.cpp comp.
+        // We will just call it. But wait, main.cpp treats !accent as 'Blue' LED.
+        // We might want a different LED for Sub?
+        // For now, let's treat Subdivision as non-accent.
         _beatCallback(isAccent);
     }
 }
@@ -114,14 +130,20 @@ void AudioEngine::audioLoop() {
             _triggerClick = false;
             // "Woodblock" Synthesis
             // High frequency sine with exponential decay
-            float freq = _triggerClickAccent ? 2500.0f : 1600.0f;
+            float freq;
+            if (_triggerClickSub) {
+                freq = 2000.0f; // Higher/Thinner for sub
+                clickDecay = 0.995f; // Faster decay (shorter tick)
+            } else {
+                freq = _triggerClickAccent ? 2500.0f : 1600.0f;
+                // Fast decay for percussive sound
+                // 0.9985 ^ 2000 samples (~45ms) -> ~0.05 amplitude
+                clickDecay = 0.9985f; 
+            }
             clickInc = (2.0f * PI * freq) / SAMPLE_RATE;
             
-            // Fast decay for percussive sound
-            // 0.9985 ^ 2000 samples (~45ms) -> ~0.05 amplitude
-            clickDecay = 0.9985f; 
             clickPhase = 0.0f;
-            clickEnv = 1.0f; 
+            clickEnv = _triggerClickSub ? 0.4f : 1.0f; // Soft volume for sub
         }
 
         // --- Synthesis ---

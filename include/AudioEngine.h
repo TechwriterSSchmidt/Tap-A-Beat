@@ -14,7 +14,8 @@ public:
     
     // Play a sound immediately (signals the audio task)
     // isAccent: true = Higher Pitch (Downbeat/One), false = Lower Pitch
-    void playClick(bool isAccent);
+    // isSubdivision: true = Very soft tick for subdivision
+    void playClick(bool isAccent, bool isSubdivision = false);
     
     // Play a continuous tone (signals the audio task)
     void startTone(float frequency);
@@ -45,6 +46,7 @@ private:
     // Click Trigger (Shared)
     volatile bool _triggerClick = false;
     volatile bool _triggerClickAccent = false;
+    volatile bool _triggerClickSub = false;
 
     // Internal synthesis state (Task only)
     float _tonePhase = 0;

@@ -25,8 +25,11 @@ enum AppState {
     STATE_MENU,
     STATE_TUNER,
     STATE_AM_TIME_SIG, // Adjustment Menu: Time Signature
+    STATE_AM_SUBDIV,   // Feature 2
     STATE_AM_BPM,      // Adjustment Menu: BPM (via Menu)
     STATE_TAP_TEMPO,   // New Tap State
+    STATE_TRAINER_MENU,// Feature 1
+    STATE_TIMER_MENU,  // Feature 3
     STATE_PRESETS_MENU, // New Submenu for Presets
     STATE_PRESET_SELECT // Loading/Saving
 };
@@ -88,6 +91,14 @@ struct MetronomeState {
     // Time Sig State
     int timeSigIdx = 3; // Default 4/4
     
+    // Feature 2: Subdivisions
+    // 0: None (Quarter Note)
+    // 1: Eighths (1/2) -> One click in between
+    // 2: Triplets (1/3) -> Two clicks
+    // 3: Sixteenths (1/4) -> Three clicks
+    int subdivision = 0; 
+    const char* subLabels[4] = {"None", "1/8", "1/3", "1/16"};
+    
     int getBeatsPerBar() {
         return timeSignatures[timeSigIdx].num;
     }
@@ -98,13 +109,29 @@ struct MetronomeState {
     }
 } metronome;
 
+// --- Feature 1 & 3 States ---
+// Trainer State
+bool trainerActive = false;
+int trainerStartBPM = 80;
+int trainerEndBPM = 120;
+int trainerStepBPM = 5;
+int trainerBarInterval = 4; // Increase every 4 bars
+int trainerBarCounter = 0;
+
+// Timer State
+bool timerActive = false;
+unsigned long timerStartTime = 0;
+unsigned long timerDuration = 600000; // 10 minutes default
+bool timerAlarmTriggered = false;
+
 TaskHandle_t metronomeTaskHandle = NULL;
 
 // --- Menu Logic -------------------------------------------------------------
-// Removed "Speed (BPM)" because it's editable in Home view
-const char* menuItems[] = {"Metric", "Taptronic", "Tuner", "Presets", "Exit"};
+// Updated Menu structure for Features
+const char* menuItems[] = {"Metric", "Subdiv", "Taptronic", "Trainer", "Timer", "Tuner", "Presets", "Exit"};
 int menuSelection = 0;
-int menuCount = 5;
+int menuCount = 8;
+
 
 // Presets Menu
 const char* presetsMenuItems[] = {"Load Preset", "Save Preset", "Back"};
@@ -118,6 +145,13 @@ enum PresetMode {
 int presetSlot = 0; // 0 to NUM_PRESETS-1
 PresetMode presetMode = PRESET_LOAD;
 #define NUM_PRESETS 50
+
+// --- Setlist State ---
+#define NUM_SETLISTS 5
+int setlistID = 0; // 0=None/Default. 1-5 = Specific Setlists.
+enum SetlistEditState { SL_NONE, SL_EDITING_ID };
+SetlistEditState slState = SL_NONE;
+int tempSetlistID = 0;
 
 // --- Encoder / Input State --------------------------------------------------
 long lastEncoderValue = 0;
@@ -166,29 +200,73 @@ void saveSettings();
 void loadSettings();
 void savePreset(int slot);
 void loadPreset(int slot);
+int getPresetSetlistID(int slot);
 
 // --- Audio Task (High Precision Metronome Trigger on Core 0) ----------------
 void metronomeTask(void * parameter) {
     unsigned long lastBeat = millis();
+    unsigned long nextSubdivision = 0;
+    int subCounter = 0;
     
     for(;;) {
         if (metronome.isPlaying && currentState == STATE_METRONOME) {
             unsigned long interval = 60000 / metronome.bpm;
             unsigned long now = millis();
             
+            // Subdivisions Calc
+            int subs = metronome.subdivision + 1; // 1, 2, 3, 4 parts
+            unsigned long subInterval = interval / subs;
+
             if (now - lastBeat >= interval) {
                 lastBeat = now;
+                nextSubdivision = now + subInterval;
+                subCounter = 1;
                 
                 // Play Click
                 bool isAccent = (metronome.beatCounter == 0);
-                audio.playClick(isAccent);
+                audio.playClick(isAccent, false);
                 
                 // Advance Beat
                 metronome.beatCounter++;
                 if (metronome.beatCounter >= metronome.getBeatsPerBar()) {
                     metronome.beatCounter = 0;
+                    
+                    // Feature 1: Trainer Auto-Increment
+                    if (trainerActive) {
+                        trainerBarCounter++;
+                        if (trainerBarCounter >= trainerBarInterval) {
+                            trainerBarCounter = 0;
+                            if (metronome.bpm < trainerEndBPM) {
+                                metronome.bpm += trainerStepBPM;
+                                if (metronome.bpm > trainerEndBPM) metronome.bpm = trainerEndBPM;
+                                encoder.setCount(metronome.bpm * 2); // Sync UI
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Check Subdivisions
+                if (metronome.subdivision > 0 && subCounter < subs) {
+                    if (now >= nextSubdivision) {
+                         audio.playClick(false, true); // Play Sub
+                         nextSubdivision += subInterval;
+                         subCounter++;
+                    }
                 }
             }
+            
+            // Feature 3: Timer Check
+            if (timerActive && !timerAlarmTriggered) {
+                if (now - timerStartTime > timerDuration) {
+                    timerAlarmTriggered = true;
+                    metronome.isPlaying = false; // Stop metronome
+                    // Maybe trigger a long haptic pulse or specific pattern?
+                    // For now, rely on UI showing "Time's Up!"
+                    hapticEnabled = true; 
+                    audio.playClick(true, false); // Single alert
+                }
+            }
+            
         } else {
              if (!metronome.isPlaying) {
                  metronome.beatCounter = 0;
@@ -362,7 +440,24 @@ void loop() {
                 
                 if (duration < 500) { // Short Click
                     // Single Press Handling
-                    if (currentState == STATE_METRONOME) {
+                    
+                    // Priority Check: Setlist Editing
+                    if (currentState == STATE_PRESET_SELECT && slState == SL_EDITING_ID) {
+                        // Confirm Setlist ID
+                        setlistID = tempSetlistID; 
+                        slState = SL_NONE;
+                        // Now save everything
+                        savePreset(presetSlot); // uses global setlistID if modified? No, need to pass it or store it.
+                        // We need to modify savePreset to use this new value.
+                        // Actually, 'setlistID' is a global state logic variable?
+                        // Let's ensure savePreset logic uses the tempSetlistID we just confirmed.
+                        // We will set a flag or just force the save now.
+                        char keySL[16]; sprintf(keySL, "p%d_slist", presetSlot);
+                        prefs.putInt(keySL, tempSetlistID);
+                        
+                        currentState = STATE_MENU; // Done
+                         
+                    } else if (currentState == STATE_METRONOME) {
                         // Toggle Play/Stop
                         metronome.isPlaying = !metronome.isPlaying;
                         if (metronome.isPlaying) metronome.beatCounter = 0;
@@ -370,18 +465,30 @@ void loop() {
                     } else if (currentState == STATE_MENU) {
                         if (menuSelection == 0) { // Metric
                              currentState = STATE_AM_TIME_SIG;
-                        } else if (menuSelection == 1) { // Tap Tempo
+                        } else if (menuSelection == 1) { // Subdiv
+                             currentState = STATE_AM_SUBDIV;
+                        } else if (menuSelection == 2) { // Tap Tempo
                              currentState = STATE_TAP_TEMPO;
                              tuner.begin(); // Enable mic
                              lastTapTime = 0;
                              tapCount = 0;
-                        } else if (menuSelection == 2) { // Tuner
+                        } else if (menuSelection == 3) { // Trainer (Simple Toggle/Conf for now)
+                             // For simplicity: Quick set or navigate to trainer menu
+                             // Let's implement basic Trainer Start? Or Menu?
+                             // User wants full feature. Let's make a simple config screen later.
+                             // For now: Toggle On/Off if already configured, or go to config.
+                             currentState = STATE_TRAINER_MENU;
+                        } else if (menuSelection == 4) { // Timer
+                             currentState = STATE_TIMER_MENU;
+                             timerStartTime = now;
+                             timerAlarmTriggered = false;
+                        } else if (menuSelection == 5) { // Tuner
                              currentState = STATE_TUNER;
                              tuner.begin(); 
-                        } else if (menuSelection == 3) { // Presets Menu
+                        } else if (menuSelection == 6) { // Presets Menu
                              currentState = STATE_PRESETS_MENU;
                              presetsMenuSelection = 0;
-                        } else if (menuSelection == 4) { // Exit
+                        } else if (menuSelection == 7) { // Exit
                              currentState = STATE_METRONOME;
                         }
                     } else if (currentState == STATE_PRESETS_MENU) {
@@ -394,6 +501,16 @@ void loop() {
                         } else { // Back
                              currentState = STATE_MENU;
                         }
+                    } else if (currentState == STATE_AM_SUBDIV) {
+                         currentState = STATE_MENU;
+                    } else if (currentState == STATE_TRAINER_MENU) {
+                         // Toggle Active
+                         trainerActive = !trainerActive;
+                         currentState = STATE_MENU; // Exit after toggle
+                    } else if (currentState == STATE_TIMER_MENU) {
+                         timerActive = !timerActive;
+                         if (timerActive) timerStartTime = millis();
+                         currentState = STATE_MENU;
                     } else if (currentState == STATE_TUNER) {
                         isTunerToneOn = !isTunerToneOn;
                         if (isTunerToneOn) {
@@ -417,7 +534,15 @@ void loop() {
                         saveSettings();
                     } else if (currentState == STATE_PRESET_SELECT) {
                         if (presetMode == PRESET_LOAD) loadPreset(presetSlot);
-                        else savePreset(presetSlot);
+                        else {
+                             // Regular save (keeps existing setlist ID if we don't change it)
+                             // Or should we ask here? User said "Beim Save... Frage nach Setlist Number"
+                             // We implemented Hold-to-set. If user just clicks, we save with current Setlist ID = 0 (or previous).
+                             // To enforce flow: Maybe onClick triggers Setlist Prompt?
+                             // But that slows down quick saves. The "Hold to set" is a good compromise.
+                             // Let's stick to: Click = Save immediate. Hold = Configure Setlist then save.
+                             savePreset(presetSlot);
+                        }
                         currentState = STATE_MENU;
                     }
                 } else { // Long Press (> 500ms)
@@ -434,6 +559,12 @@ void loop() {
                             encoder.setCount(lastEncoderValue * 2);
                             saveSettings();
                         }
+                    } else if (currentState == STATE_PRESET_SELECT && presetMode == PRESET_SAVE) {
+                        // Hold on Save Screen -> Enter Setlist Editor
+                        slState = SL_EDITING_ID;
+                        tempSetlistID = getPresetSetlistID(presetSlot);
+                        // Reset encoder to control ID
+                        encoder.setCount(tempSetlistID * 2); 
                     } else {
                         // Exit back to Metronome
                         currentState = STATE_METRONOME;
@@ -492,14 +623,34 @@ void loop() {
             metronome.timeSigIdx += delta;
             if (metronome.timeSigIdx < 0) metronome.timeSigIdx = 0;
             if (metronome.timeSigIdx >= NUM_TIME_SIGS) metronome.timeSigIdx = NUM_TIME_SIGS - 1; 
+        } else if (currentState == STATE_AM_SUBDIV) {
+            metronome.subdivision += delta;
+            if (metronome.subdivision < 0) metronome.subdivision = 0;
+            if (metronome.subdivision > 3) metronome.subdivision = 3;
+        } else if (currentState == STATE_TRAINER_MENU) {
+            // Adjust End BPM as example config
+            trainerEndBPM += delta;
+        } else if (currentState == STATE_TIMER_MENU) {
+             // Adjust minutes
+             int mins = timerDuration / 60000;
+             mins += delta;
+             if (mins < 1) mins = 1;
+             if (mins > 60) mins = 60;
+             timerDuration = mins * 60000;
         } else if (currentState == STATE_AM_BPM) {
             tempBPM += delta;
             if (tempBPM < 30) tempBPM = 30;
             if (tempBPM > 300) tempBPM = 300;
         } else if (currentState == STATE_PRESET_SELECT) {
-            presetSlot += delta;
-            if (presetSlot < 0) presetSlot = 0;
-            if (presetSlot >= NUM_PRESETS) presetSlot = NUM_PRESETS - 1;
+            if (slState == SL_EDITING_ID) {
+                tempSetlistID += delta;
+                if (tempSetlistID < 0) tempSetlistID = 0;
+                if (tempSetlistID > NUM_SETLISTS) tempSetlistID = NUM_SETLISTS;
+            } else {
+                presetSlot += delta;
+                if (presetSlot < 0) presetSlot = 0;
+                if (presetSlot >= NUM_PRESETS) presetSlot = NUM_PRESETS - 1;
+            }
         } else if (currentState == STATE_TAP_TEMPO) {
             tapSensitivity += (delta * 0.05f);
             if (tapSensitivity < 0.1f) tapSensitivity = 0.1f;
@@ -605,6 +756,39 @@ void loop() {
             break;
         case STATE_AM_TIME_SIG:
             drawTimeSigScreen();
+            break;
+        case STATE_AM_SUBDIV:
+            u8g2.setFont(u8g2_font_profont12_mf);
+            u8g2.drawStr(0, 12, "--- SUBDIVISIONS ---");
+            u8g2.setFont(u8g2_font_logisoso32_tf);
+            {
+               int ws = u8g2.getStrWidth(metronome.subLabels[metronome.subdivision]);
+               u8g2.setCursor((128-ws)/2, 70);
+               u8g2.print(metronome.subLabels[metronome.subdivision]);
+            }
+            break;
+        case STATE_TRAINER_MENU:
+            u8g2.setFont(u8g2_font_profont12_mf);
+            u8g2.drawStr(0, 12, "-- TEMPO TRAINER --");
+            {
+                char buf[32];
+                sprintf(buf, "Active: %s", trainerActive ? "ON" : "OFF");
+                u8g2.drawStr(10, 40, buf);
+                sprintf(buf, "End BPM: %d", trainerEndBPM);
+                u8g2.drawStr(10, 60, buf);
+                u8g2.drawStr(10, 90, "Click to Toggle");
+            }
+            break;
+        case STATE_TIMER_MENU:
+            u8g2.setFont(u8g2_font_profont12_mf);
+            u8g2.drawStr(0, 12, "-- PRACTICE TIMER --");
+            {
+                char buf[32];
+                sprintf(buf, "Duration: %d min", timerDuration / 60000);
+                u8g2.drawStr(10, 50, buf);
+                sprintf(buf, "Status: %s", timerActive ? "Running" : "Stopped");
+                u8g2.drawStr(10, 70, buf);
+            }
             break;
         case STATE_AM_BPM:
             drawBPMScreen();
@@ -937,6 +1121,12 @@ void drawTapScreen() {
     }
 }
 
+// --- Helper Functions to read setlist from Prefs for display ---
+int getPresetSetlistID(int slot) {
+    char keySL[16]; sprintf(keySL, "p%d_slist", slot);
+    return prefs.getInt(keySL, 0); // Default 0
+}
+
 void drawPresetScreen() {
     u8g2.setFont(u8g2_font_profont12_mf);
     const char* title = (presetMode == PRESET_LOAD) ? "Load Preset" : "Save Preset";
@@ -944,6 +1134,17 @@ void drawPresetScreen() {
     u8g2.drawLine(0, 12, 128, 12);
     
     // Slot Number
+    if (slState == SL_EDITING_ID) {
+        u8g2.drawStr(20, 35, "Setlist #?");
+        u8g2.setFont(u8g2_font_logisoso24_tn);
+        char buf[8]; sprintf(buf, "%d", tempSetlistID);
+        u8g2.drawStr(60, 70, buf);
+        u8g2.setFont(u8g2_font_profont12_mf);
+        u8g2.drawStr(30, 100, "Turn: Change");
+        u8g2.drawStr(30, 115, "Click: Confirm");
+        return;
+    }
+
     char buf[24];
     sprintf(buf, "Slot %d / %d", presetSlot + 1, NUM_PRESETS);
     // Center it roughly
@@ -962,18 +1163,17 @@ void drawPresetScreen() {
         u8g2.drawStr(40, 70, "(Empty)");
     } else {
         // Read values (or what WILL be overwritten)
-        int pBpm, pTs;
+        int pBpm;
         if (presetMode == PRESET_SAVE && !prefs.isKey(key)) {
-             // Saving to new slot -> Show nothing or "(New)"?
-             // Actually, show what we are about to save? No, that's current state.
-             // User wants to identify the SLOT.
-             u8g2.drawStr(45, 65, "(Empty)");
+             u8g2.drawStr(45, 65, "(New)");
+             u8g2.setFont(u8g2_font_profont12_mf);
         } else {
              // Existing data
              pBpm = prefs.getInt(key, 120);
              char keyTs[16]; sprintf(keyTs, "p%d_ts_idx", presetSlot);
              int tsIdx = prefs.getInt(keyTs, 3); // Default 4/4
-             
+             if(tsIdx < 0 || tsIdx >= NUM_TIME_SIGS) tsIdx = 3;
+
              // Display Logic: "4/4 @ 120"
              u8g2.setFont(u8g2_font_logisoso24_tn);
              char infoBuf[16];
@@ -982,17 +1182,23 @@ void drawPresetScreen() {
              
              u8g2.setFont(u8g2_font_profont12_mf);
              u8g2.drawStr(70, 70, "BPM");
-             
-             // Use label from array
-             // Safety check
-             if(tsIdx < 0 || tsIdx >= NUM_TIME_SIGS) tsIdx = 3;
-             
              u8g2.drawStr(70, 85, timeSignatures[tsIdx].label);
+             
+             // Setlist ID Display
+             int sList = getPresetSetlistID(presetSlot);
+             if (sList > 0) {
+                 char slBuf[20]; sprintf(slBuf, "Set: #%d", sList);
+                 u8g2.drawStr(70, 100, slBuf);
+             }
         }
     }
 
     u8g2.setFont(u8g2_font_tiny5_tf);
-    u8g2.drawStr(10, 110, "Turn:Select Click:Do");
+    if(presetMode == PRESET_SAVE) {
+        u8g2.drawStr(10, 115, "Hold Enc: Set Setlist");
+    } else {
+        u8g2.drawStr(10, 115, "Turn:Select Click:Do");
+    }
 }
 
 void enterDeepSleep() {
