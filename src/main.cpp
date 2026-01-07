@@ -27,6 +27,7 @@ enum AppState {
     STATE_AM_TIME_SIG, // Adjustment Menu: Time Signature
     STATE_AM_BPM,      // Adjustment Menu: BPM (via Menu)
     STATE_TAP_TEMPO,   // New Tap State
+    STATE_PRESETS_MENU, // New Submenu for Presets
     STATE_PRESET_SELECT // Loading/Saving
 };
 
@@ -51,9 +52,14 @@ TaskHandle_t metronomeTaskHandle = NULL;
 
 // --- Menu Logic -------------------------------------------------------------
 // Removed "Speed (BPM)" because it's editable in Home view
-const char* menuItems[] = {"Metric", "Taptronic", "Tuner", "Load Preset", "Save Preset", "Exit"};
+const char* menuItems[] = {"Metric", "Taptronic", "Tuner", "Presets", "Exit"};
 int menuSelection = 0;
-int menuCount = 6;
+int menuCount = 5;
+
+// Presets Menu
+const char* presetsMenuItems[] = {"Load Preset", "Save Preset", "Back"};
+int presetsMenuSelection = 0;
+int presetsMenuCount = 3;
 
 enum PresetMode {
     PRESET_LOAD,
@@ -335,10 +341,29 @@ void loop() {
         if (currentState == STATE_METRONOME) {
             if (isVolumeFocus) {
                 // Adjust Volume
-                int newVol = audio.getVolume() + delta * 2;
-                if (newVol < 0) newVol = 0; 
-                if (newVol > 100) newVol = 100;
-                audio.setVolume(newVol);
+                int currentVol = audio.getVolume();
+                
+                if (delta > 0) {
+                    // Turn Right (Increase)
+                    if (!hapticEnabled) {
+                         hapticEnabled = true; // Re-enable first
+                    } else {
+                         currentVol += delta * 2;
+                         if (currentVol > 100) currentVol = 100;
+                         audio.setVolume(currentVol);
+                    }
+                } else {
+                    // Turn Left (Decrease)
+                    if (currentVol > 0) {
+                         currentVol += delta * 2;
+                         if (currentVol < 0) currentVol = 0;
+                         audio.setVolume(currentVol);
+                    } else {
+                         // Already at 0, allow disabling haptic
+                         if (hapticEnabled) hapticEnabled = false;
+                    }
+                }
+                saveSettings();
             } else {
                 // Adjust BPM
                 metronome.bpm += delta;
@@ -502,9 +527,22 @@ void drawMetronomeScreen() {
         u8g2.setFont(u8g2_font_profont12_mf);
         u8g2.drawStr(20, 55, "VOLUME");
         
-        u8g2.setFont(u8g2_font_logisoso24_tn);
-        u8g2.setCursor(45, 85);
-        u8g2.print(audio.getVolume());
+        if (audio.getVolume() == 0) {
+             u8g2.setFont(u8g2_font_logisoso24_tn); // Keep font size consistent-ish?
+             // Show Status
+             if (hapticEnabled) {
+                 // "VIB" or similar
+                 u8g2.setFont(u8g2_font_profont12_mf);
+                 u8g2.drawStr(30, 80, "MUTE (VIB)");
+             } else {
+                 u8g2.setFont(u8g2_font_profont12_mf);
+                 u8g2.drawStr(30, 80, "MUTE (LED)");
+             }
+        } else {
+            u8g2.setFont(u8g2_font_logisoso24_tn);
+            u8g2.setCursor(45, 85);
+            u8g2.print(audio.getVolume());
+        }
         
         // Indicate Click to Return
         u8g2.setFont(u8g2_font_tiny5_tf);
@@ -744,6 +782,7 @@ void saveSettings() {
     prefs.putInt("ts", metronome.beatsPerBar);
     prefs.putInt("vol", audio.getVolume());
     prefs.putFloat("a4", a4Reference);
+    prefs.putBool("haptic", hapticEnabled);
 }
 
 void loadSettings() {
@@ -751,6 +790,7 @@ void loadSettings() {
     metronome.beatsPerBar = prefs.getInt("ts", 4);
     int vol = prefs.getInt("vol", 50);
     a4Reference = prefs.getFloat("a4", 440.0f);
+    hapticEnabled = prefs.getBool("haptic", true);
     if (vol < 0) vol = 0; if (vol > 100) vol = 100;
     audio.setVolume(vol);
     tuner.setA4Reference(a4Reference);
