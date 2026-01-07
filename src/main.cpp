@@ -31,6 +31,7 @@ enum AppState {
 };
 
 AppState currentState = STATE_METRONOME;
+bool isVolumeFocus = false; // Toggle between BPM (false) and Volume (true) adjustment
 
 // --- Metronome Logic --------------------------------------------------------
 struct MetronomeState {
@@ -49,9 +50,10 @@ struct MetronomeState {
 TaskHandle_t metronomeTaskHandle = NULL;
 
 // --- Menu Logic -------------------------------------------------------------
-const char* menuItems[] = {"Speed (BPM)", "Metric", "Tap Tempo", "Tuner", "Load Preset", "Save Preset", "Exit"};
+// Removed "Speed (BPM)" because it's editable in Home view
+const char* menuItems[] = {"Metric", "Tap Tempo", "Tuner", "Load Preset", "Save Preset", "Exit"};
 int menuSelection = 0;
-int menuCount = 7;
+int menuCount = 6;
 
 enum PresetMode {
     PRESET_LOAD,
@@ -65,8 +67,6 @@ PresetMode presetMode = PRESET_LOAD;
 long lastEncoderValue = 0;
 unsigned long buttonPressTime = 0;
 bool buttonActive = false;
-bool isVolumeAdjustment = false;
-bool isTunerToneOn = false;
 bool buttonStableState = false;
 bool buttonLastRead = false;
 unsigned long buttonLastChange = 0;
@@ -91,6 +91,7 @@ int feedbackPulseMs = 40;
 // Settings persistence
 float a4Reference = 440.0f;
 int tempBPM = 120; // For Adjust BPM Screen
+bool isTunerToneOn = false;
 
 // --- Power Management -------------------------------------------------------
 unsigned long lastActivityTime = 0;
@@ -249,34 +250,34 @@ void loop() {
             } else { // Release
                 buttonActive = false;
                 long duration = now - buttonPressTime;
-                isVolumeAdjustment = false;
                 
                 if (duration < 500) { // Short Click
+                    // Single Press Handling
                     if (currentState == STATE_METRONOME) {
-                         metronome.isPlaying = !metronome.isPlaying;
-                         if (metronome.isPlaying) metronome.beatCounter = 0;
-                         saveSettings();
+                        // Toggle Focus between BPM and Volume
+                        isVolumeFocus = !isVolumeFocus;
+                        // Reset encoder helper
+                        lastEncoderValue = newEncVal; 
+                        encoder.setCount(lastEncoderValue * 2);
+                        saveSettings();
                     } else if (currentState == STATE_MENU) {
-                        if (menuSelection == 0) { // BPM
-                             currentState = STATE_AM_BPM;
-                             tempBPM = metronome.bpm;
-                        } else if (menuSelection == 1) { // Time Sig
+                        if (menuSelection == 0) { // Metric
                              currentState = STATE_AM_TIME_SIG;
-                        } else if (menuSelection == 2) { // Tap Tempo
+                        } else if (menuSelection == 1) { // Tap Tempo
                              currentState = STATE_TAP_TEMPO;
                              tuner.begin(); // Enable mic
                              lastTapTime = 0;
                              tapCount = 0;
-                        } else if (menuSelection == 3) { // Tuner
+                        } else if (menuSelection == 2) { // Tuner
                              currentState = STATE_TUNER;
                              tuner.begin(); 
-                        } else if (menuSelection == 4) { // Load
+                        } else if (menuSelection == 3) { // Load
                              currentState = STATE_PRESET_SELECT;
                              presetMode = PRESET_LOAD;
-                        } else if (menuSelection == 5) { // Save
+                        } else if (menuSelection == 4) { // Save
                              currentState = STATE_PRESET_SELECT;
                              presetMode = PRESET_SAVE;
-                        } else if (menuSelection == 6) { // Exit
+                        } else if (menuSelection == 5) { // Exit
                              currentState = STATE_METRONOME;
                         }
                     } else if (currentState == STATE_TUNER) {
@@ -297,7 +298,6 @@ void loop() {
                         encoder.setCount(metronome.bpm * 2);
                         saveSettings();
                     } else if (currentState == STATE_TAP_TEMPO) {
-                        // Confirm tap BPM? Or just exit?
                         currentState = STATE_MENU;
                         tuner.stop();
                         saveSettings();
@@ -306,45 +306,57 @@ void loop() {
                         else savePreset(presetSlot);
                         currentState = STATE_MENU;
                     }
-                } else { // Long Press
+                } else { // Long Press (> 500ms)
                     if (currentState == STATE_METRONOME) {
-                        metronome.isPlaying = false;
-                        currentState = STATE_MENU;
-                        lastEncoderValue = newEncVal; // Reset delta
-                        encoder.setCount(menuSelection * 2); // Map encoder to menu? No, prefer delta.
-                    } else if (currentState == STATE_TUNER || currentState == STATE_TAP_TEMPO) {
+                        // Long Press Strategy: 
+                        // > 2000ms: Menu
+                        // > 600ms: Play/Stop (Logic below in separate block if release timing allows)
+                        // Actually, simplified: Long Press = Menu.
+                        // We need a way to Play/Stop. 
+                        // I'll add "Play/Stop" to the Menu? Or make it a Double Click later.
+                        // For now, let's keep Long Press -> Menu to support all features.
+                        // AND I'll add a "Metric" screen click = Play logic? No.
+                        
+                        // Let's rely on the timed logic below for distinct actions
+                        // But here is the Release event. Can't distinguish Very Long from Long easily without start time.
+                        if (now - buttonPressTime > 2000) {
+                            metronome.isPlaying = false;
+                            currentState = STATE_MENU;
+                            isVolumeFocus = false;
+                        } else {
+                            // Medium Press (0.5 - 2s) -> Play/Stop
+                             metronome.isPlaying = !metronome.isPlaying;
+                             if (metronome.isPlaying) metronome.beatCounter = 0;
+                             saveSettings();
+                        }
+
+                    } else {
+                        // Exit back to Metronome
+                        currentState = STATE_METRONOME;
                         isTunerToneOn = false;
                         audio.stopTone();
-                        tuner.stop();
-                        currentState = STATE_MENU;
-                    } else if (currentState != STATE_MENU) {
-                         currentState = STATE_MENU;
+                        if (currentState == STATE_TUNER || currentState == STATE_TAP_TEMPO) tuner.stop();
                     }
                 }
             }
         }
     }
     
-    // Volume Control (Press & Turn)
-    if (buttonActive && delta != 0 && currentState == STATE_METRONOME) {
-        isVolumeAdjustment = true;
-        
-        int newVol = audio.getVolume() + delta * 2;
-        if (newVol < 0) newVol = 0; 
-        if (newVol > 100) newVol = 100;
-        audio.setVolume(newVol);
-        
-        delta = 0; 
-        encoder.setCount(lastEncoderValue * 2); 
-        newEncVal = lastEncoderValue;
-    }
-
     // Encoder State Logic
-    if (delta != 0 && !isVolumeAdjustment) {
+    if (delta != 0) {
         if (currentState == STATE_METRONOME) {
-            metronome.bpm += delta;
-            if (metronome.bpm < 30) metronome.bpm = 30;
-            if (metronome.bpm > 300) metronome.bpm = 300;
+            if (isVolumeFocus) {
+                // Adjust Volume
+                int newVol = audio.getVolume() + delta * 2;
+                if (newVol < 0) newVol = 0; 
+                if (newVol > 100) newVol = 100;
+                audio.setVolume(newVol);
+            } else {
+                // Adjust BPM
+                metronome.bpm += delta;
+                if (metronome.bpm < 30) metronome.bpm = 30;
+                if (metronome.bpm > 300) metronome.bpm = 300;
+            }
         } else if (currentState == STATE_MENU) {
             menuSelection += delta;
             if (menuSelection < 0) menuSelection = 0;
@@ -352,7 +364,7 @@ void loop() {
         } else if (currentState == STATE_AM_TIME_SIG) {
             metronome.beatsPerBar += delta;
             if (metronome.beatsPerBar < 1) metronome.beatsPerBar = 1;
-            if (metronome.beatsPerBar > 12) metronome.beatsPerBar = 12; // Allow up to 12
+            if (metronome.beatsPerBar > 12) metronome.beatsPerBar = 12; 
         } else if (currentState == STATE_AM_BPM) {
             tempBPM += delta;
             if (tempBPM < 30) tempBPM = 30;
@@ -378,12 +390,11 @@ void loop() {
     // Tap Tempo Analysis
     if (currentState == STATE_TAP_TEMPO) {
         float lvl = tuner.readLevel();
-        tapInputLevel = (lvl / 15000000.0f); // Normalize roughly 0-1
-        // Dynamic threshold
+        tapInputLevel = (lvl / 15000000.0f); 
         float threshold = 5000000.0f + (1.0f - tapSensitivity) * 10000000.0f;
         
         if (lvl > threshold) {
-             if (now - lastTapTime > 150) { // Debounce
+             if (now - lastTapTime > 150) { 
                  lastActivityTime = now;
                  if (now - lastTapTime > TAP_TIMEOUT) {
                      tapCount = 1;
@@ -465,7 +476,18 @@ void drawMetronomeScreen() {
     // BPM
     u8g2.setFont(u8g2_font_logisoso42_tn);
     u8g2.setCursor(20, 60);
+    
+    // Blink/Dim BPM if strictly in Volume Focus? Or just Highlight Volume?
+    if (isVolumeFocus) u8g2.setDrawColor(0); // Invert?
+    else u8g2.setDrawColor(1);
+    
+    // Draw Background to indicate "Not Focused" properly
+    if (isVolumeFocus) {
+         // Maybe just gray text effect (checkered)? No, 1-bit.
+    }
+    
     u8g2.print(metronome.bpm);
+    u8g2.setDrawColor(1); // Restore
     
     u8g2.setFont(u8g2_font_profont12_mf);
     u8g2.drawStr(95, 60, "BPM");
@@ -482,8 +504,8 @@ void drawMetronomeScreen() {
         return; 
     }
 
-    // Volume Overlay (when adjusting)
-    if (buttonActive && isVolumeAdjustment) {
+    // Volume Overlay (when adjusting or focused)
+    if (isVolumeFocus) {
         u8g2.setDrawColor(0);
         u8g2.drawBox(14, 40, 100, 50); // Clear area
         u8g2.setDrawColor(1);
@@ -495,6 +517,10 @@ void drawMetronomeScreen() {
         u8g2.setFont(u8g2_font_logisoso24_tn);
         u8g2.setCursor(45, 85);
         u8g2.print(audio.getVolume());
+        
+        // Indicate Click to Return
+        u8g2.setFont(u8g2_font_tiny5_tf);
+        u8g2.drawStr(30, 88, "Click -> BPM");
         return; // Skip drawing the rest
     }
 
@@ -507,8 +533,8 @@ void drawMetronomeScreen() {
         u8g2.print(metronome.beatsPerBar);
     } else {
         u8g2.drawCircle(cx, cy, 10);
-        u8g2.setCursor(48, 115);
-        u8g2.print("STOP");
+        u8g2.setCursor(40, 115);
+        u8g2.print("Hold: Play");
     }
     
     // Volume Bar
@@ -535,9 +561,6 @@ void drawMenuScreen() {
         u8g2.setCursor(4, startY + i*h);
         
         if (i == 0) {
-             u8g2.print("Speed: ");
-             u8g2.print(metronome.bpm);
-        } else if (i == 1) {
              u8g2.print("Metric: ");
              u8g2.print(metronome.beatsPerBar);
              u8g2.print("/4");

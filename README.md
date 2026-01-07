@@ -1,7 +1,5 @@
 # Tap-A-Beat
-A professional, tactile, and highly precise digital metronome and multi-tool for musicians.
-
-> A small, tactilely satisfying, ear-triggering mini metronome.
+A tactilely satisfying, and highly precise digital metronome and multi-tool for the person I care for.
 
 **Tap-A-Beat** is an ESP32 based digital metronome packed with features in a compact form factor. It is designed to be responsive, precise, and a joy to use.
 
