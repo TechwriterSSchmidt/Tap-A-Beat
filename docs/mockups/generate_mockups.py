@@ -5,137 +5,141 @@ import os
 WIDTH = 128
 HEIGHT = 128
 BG_COLOR = (0, 0, 0)
-FG_COLOR = (255, 255, 255)
-ACCENT_COLOR = (200, 200, 200)
+FG_COLOR = (255, 255, 255) # Lit pixels
 
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def get_font(size):
     try:
-        # Try standard Windows font
-        return ImageFont.truetype("arial.ttf", size)
+        # Try a monospace-like font if possible, else arial
+        return ImageFont.truetype("cour.ttf", size) 
     except IOError:
-        return ImageFont.load_default()
+        try:
+             return ImageFont.truetype("arial.ttf", size)
+        except IOError:
+             return ImageFont.load_default()
 
 def create_base_image():
     return Image.new('RGB', (WIDTH, HEIGHT), BG_COLOR)
 
 def draw_metronome_screen():
+    # Matches drawMetronomeScreen in main.cpp
     img = create_base_image()
     draw = ImageDraw.Draw(img)
     
-    # Status Bar
-    font_small = get_font(10)
-    draw.text((2, 0), "[~] [Spkr]", font=font_small, fill=FG_COLOR)
+    # BPM (Logisoso42 approx)
+    font_bpm = get_font(42)
+    draw.text((20, 15), "120", font=font_bpm, fill=FG_COLOR)
     
-    # BPM
-    font_large = get_font(40)
-    text_bpm = "120"
-    # Centering text manually-ish or using textbbox if available (older PIL might not have it)
-    # Using roughly estimated centering for robustness
-    draw.text((30, 30), text_bpm, font=font_large, fill=FG_COLOR)
+    # "BPM" Label (ProFont12)
+    font_small = get_font(12)
+    draw.text((95, 50), "BPM", font=font_small, fill=FG_COLOR)
     
-    font_med = get_font(12)
-    draw.text((50, 70), "BPM", font=font_med, fill=ACCENT_COLOR)
+    # Beat Visual (Disc at 64, 90)
+    cx, cy = 64, 90
+    r = 10
+    draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=FG_COLOR, width=1)
     
-    # Beat Indicator
-    draw.text((35, 90), ">> O <<", font=font_med, fill=FG_COLOR)
+    # Beat Counter "1/4"
+    draw.text((45, 105), "1/4", font=font_small, fill=FG_COLOR)
     
-    # Bottom Info
-    draw.text((20, 110), "4/4  Vol:10", font=font_small, fill=FG_COLOR)
+    # Volume Bar (Bottom)
+    vol_w = 64 # 50% volume
+    draw.rectangle((0, 124, vol_w, 128), fill=FG_COLOR)
     
     img.save(os.path.join(OUTPUT_DIR, "screen_metronome.png"))
 
 def draw_menu_screen():
+    # Matches drawMenuScreen
     img = create_base_image()
     draw = ImageDraw.Draw(img)
     
-    font_header = get_font(14)
-    font_item = get_font(11)
+    font_header = get_font(12)
+    font_item = get_font(10)
     
     # Header
-    draw.rectangle([0, 0, 128, 16], outline=FG_COLOR, width=1)
-    draw.text((35, 1), "- MENU -", font=font_header, fill=FG_COLOR)
+    draw.text((0, 0), "-- MENU --", font=font_header, fill=FG_COLOR)
+    draw.line((0, 12, 128, 12), fill=FG_COLOR)
     
     # Items
-    items = [
-        "> Speed: 120 bpm",
-        "  Metric: 4/4",
-        "  Tap / Thresh",
-        "  Tuner",
-        "  Volume: 10",
-        "  Exit"
-    ]
+    items = ["Metric: 4/4", "Taptronic", "Tuner", "Load Preset", "Save Preset", "Exit"]
+    selection = 1 # Select Taptronic to highlight it
     
-    y = 25
-    for item in items:
-        draw.text((5, y), item, font=font_item, fill=FG_COLOR)
-        y += 15
-        
+    y = 30
+    h = 14
+    
+    for i, item in enumerate(items):
+        if i == selection:
+            # Selected: Inverted box
+            draw.rectangle((0, y - 9 + (i*h), 128, y + 2 + (i*h)), fill=FG_COLOR)
+            draw.text((4, y + (i*h) - 8), item, font=font_item, fill=BG_COLOR)
+        else:
+            draw.text((4, y + (i*h) - 8), item, font=font_item, fill=FG_COLOR)
+            
     img.save(os.path.join(OUTPUT_DIR, "screen_menu.png"))
 
 def draw_set_bpm_screen():
+    # Reusing filename for "Time Sig" screen as "Set BPM" is gone from menu
+    # Matches drawTimeSigScreen in main.cpp
     img = create_base_image()
     draw = ImageDraw.Draw(img)
     
-    font_header = get_font(14)
-    
-    # Header
-    draw.rectangle([0, 0, 128, 16], fill=FG_COLOR)
-    draw.text((30, 1), "- SET BPM -", font=font_header, fill=BG_COLOR)
-    
-    # Value
-    font_huge = get_font(48)
-    draw.text((25, 40), "120", font=font_huge, fill=FG_COLOR)
-    
-    # Footer
     font_small = get_font(10)
-    draw.text((30, 110), "(Click to Set)", font=font_small, fill=ACCENT_COLOR)
+    draw.text((0, 2), "--- TIME SIG ---", font=font_small, fill=FG_COLOR)
     
-    img.save(os.path.join(OUTPUT_DIR, "screen_set_bpm.png"))
+    # Big Number
+    font_large = get_font(42)
+    draw.text((40, 25), "4", font=font_large, fill=FG_COLOR)
+    
+    # Arrows (Triangle)
+    # Left: 10,50 -> 25,40 -> 25,60
+    draw.polygon([(10, 50), (25, 40), (25, 60)], outline=FG_COLOR, fill=FG_COLOR)
+    # Right: 118,50 -> 103,40 -> 103,60
+    draw.polygon([(118, 50), (103, 40), (103, 60)], outline=FG_COLOR, fill=FG_COLOR)
+    
+    # Bottom text
+    draw.text((30, 80), "4 Beats/Bar", font=font_small, fill=FG_COLOR)
+    
+    img.save(os.path.join(OUTPUT_DIR, "screen_set_bpm.png")) # Keep filename for README compat
 
 def draw_tap_tempo_screen():
+    # Matches drawTapScreen (Taptronic)
     img = create_base_image()
     draw = ImageDraw.Draw(img)
     
-    font_header = get_font(14)
-    font_small = get_font(10)
+    font_bold = get_font(12) # ProFont12
+    draw.text((30, 2), "TAPTRONIC", font=font_bold, fill=FG_COLOR)
+    draw.line((0, 14, 128, 14), fill=FG_COLOR)
     
-    # Header
-    draw.text((25, 2), "TAP TEMPO", font=font_header, fill=FG_COLOR)
-    draw.line((0, 18, 128, 18), fill=FG_COLOR)
-
-    # Heart shape points
-    # A simple heart polygon
-    heart_points = [
-        (64, 90), # Bottom tip
-        (30, 50), # Left lower
-        (30, 30), # Left upper
-        (45, 25), # Left bump top
-        (64, 40), # Top center dip
-        (83, 25), # Right bump top
-        (98, 30), # Right upper
-        (98, 50), # Right lower
+    cx, cy = 64, 60
+    
+    # Heart Outline (Lines from code)
+    # (cx, cy + 30) -> (cx - 30, cy - 10)
+    # (cx - 30, cy - 10) -> (cx - 15, cy - 25)
+    # ...
+    points = [
+        (cx, cy + 30),
+        (cx - 30, cy - 10),
+        (cx - 15, cy - 25),
+        (cx, cy - 10), # Center Join
+        (cx + 15, cy - 25),
+        (cx + 30, cy - 10),
+        (cx, cy + 30)
     ]
+    draw.line(points, fill=FG_COLOR, width=1)
     
-    # Draw Heart Outline (Threshold)
-    draw.polygon(heart_points, outline=FG_COLOR)
+    # Filled Inner (Triggered State)
+    # Discs at cx-15, cy-5, r=8
+    r = 8
+    draw.ellipse((cx - 15 - r, cy - 5 - r, cx - 15 + r, cy - 5 + r), fill=FG_COLOR)
+    draw.ellipse((cx + 15 - r, cy - 5 - r, cx + 15 + r, cy - 5 + r), fill=FG_COLOR)
+    # Triangle Bottom
+    draw.polygon([(cx - 21, cy + 1), (cx + 21, cy + 1), (cx, cy + 22)], fill=FG_COLOR)
     
-    # Simulate Fill (Signal Level) - Filled slightly smaller/clipped
-    # We'll just draw a filled polygon but clipped to the bottom half to simulate "filling up"
-    # For simplicty in mockup, let's just fill a smaller heart inside or fill the bottom half
-    
-    fill_level_y = 60 # y coordinate to clip at
-    
-    # Draw a filled rectangle masked by the heart shape? 
-    # PIL is a bit basic. Let's just draw lines inside the heart for the "fill"
-    for y in range(60, 90, 2):
-        draw.line((50, y, 78, y), fill=ACCENT_COLOR) # Rough fill approximation
-        
-    draw.text((45, 65), "##", font=font_small, fill=FG_COLOR) # Visual noise for fill
-
-    # Sensitivity
-    draw.text((20, 110), "Sensitivity: 50%", font=font_small, fill=FG_COLOR)
+    # Text
+    font_small = get_font(10)
+    draw.text((10, 110), "Sens: 50%", font=font_small, fill=FG_COLOR)
+    draw.text((70, 110), "TAP NOW!", font=font_small, fill=FG_COLOR)
     
     img.save(os.path.join(OUTPUT_DIR, "screen_tap_tempo.png"))
 
