@@ -308,28 +308,16 @@ void loop() {
                     }
                 } else { // Long Press (> 500ms)
                     if (currentState == STATE_METRONOME) {
-                        // Long Press Strategy: 
-                        // > 2000ms: Menu
-                        // > 600ms: Play/Stop (Logic below in separate block if release timing allows)
-                        // Actually, simplified: Long Press = Menu.
-                        // We need a way to Play/Stop. 
-                        // I'll add "Play/Stop" to the Menu? Or make it a Double Click later.
-                        // For now, let's keep Long Press -> Menu to support all features.
-                        // AND I'll add a "Metric" screen click = Play logic? No.
-                        
-                        // Let's rely on the timed logic below for distinct actions
-                        // But here is the Release event. Can't distinguish Very Long from Long easily without start time.
-                        if (now - buttonPressTime > 2000) {
+                        if (duration > 2000) {
                             metronome.isPlaying = false;
                             currentState = STATE_MENU;
                             isVolumeFocus = false;
                         } else {
-                            // Medium Press (0.5 - 2s) -> Play/Stop
+                            // Medium Press (0.5 - 2s) -> Toggle Play/Stop
                              metronome.isPlaying = !metronome.isPlaying;
                              if (metronome.isPlaying) metronome.beatCounter = 0;
                              saveSettings();
                         }
-
                     } else {
                         // Exit back to Metronome
                         currentState = STATE_METRONOME;
