@@ -34,13 +34,44 @@ enum AppState {
 AppState currentState = STATE_METRONOME;
 bool isVolumeFocus = false; // Toggle between BPM (false) and Volume (true) adjustment
 
+// --- Time Signatures --------------------------------------------------------
+struct TimeSig {
+    int num;
+    int den;
+    const char* label;
+};
+
+// Common Time Signatures + Jazz/Odd
+const TimeSig timeSignatures[] = {
+    {1, 4, "1/4"},
+    {2, 4, "2/4"},
+    {3, 4, "3/4"},
+    {4, 4, "4/4"},
+    {5, 4, "5/4"},
+    {6, 4, "6/4"},
+    {7, 4, "7/4"},
+    {3, 8, "3/8"},
+    {5, 8, "5/8"},
+    {6, 8, "6/8"},
+    {7, 8, "7/8"},
+    {9, 8, "9/8"},
+    {12, 8, "12/8"}
+};
+const int NUM_TIME_SIGS = sizeof(timeSignatures) / sizeof(TimeSig);
+
 // --- Metronome Logic --------------------------------------------------------
 struct MetronomeState {
     volatile int bpm = 120;
     volatile bool isPlaying = false;
     unsigned long lastBeatTime = 0;
     volatile int beatCounter = 0; // 0 = first beat (Accent)
-    volatile int beatsPerBar = 4; // Top number (4/4 -> 4)
+    
+    // Time Sig State
+    int timeSigIdx = 3; // Default 4/4
+    
+    int getBeatsPerBar() {
+        return timeSignatures[timeSigIdx].num;
+    }
 
     void resetBeat() {
         beatCounter = 0;
@@ -135,7 +166,7 @@ void metronomeTask(void * parameter) {
                 
                 // Advance Beat
                 metronome.beatCounter++;
-                if (metronome.beatCounter >= metronome.beatsPerBar) {
+                if (metronome.beatCounter >= metronome.getBeatsPerBar()) {
                     metronome.beatCounter = 0;
                 }
             }
@@ -387,9 +418,9 @@ void loop() {
             if (presetsMenuSelection < 0) presetsMenuSelection = 0;
             if (presetsMenuSelection >= presetsMenuCount) presetsMenuSelection = presetsMenuCount - 1;
         } else if (currentState == STATE_AM_TIME_SIG) {
-            metronome.beatsPerBar += delta;
-            if (metronome.beatsPerBar < 1) metronome.beatsPerBar = 1;
-            if (metronome.beatsPerBar > 12) metronome.beatsPerBar = 12; 
+            metronome.timeSigIdx += delta;
+            if (metronome.timeSigIdx < 0) metronome.timeSigIdx = 0;
+            if (metronome.timeSigIdx >= NUM_TIME_SIGS) metronome.timeSigIdx = NUM_TIME_SIGS - 1; 
         } else if (currentState == STATE_AM_BPM) {
             tempBPM += delta;
             if (tempBPM < 30) tempBPM = 30;
@@ -571,7 +602,7 @@ void drawMetronomeScreen() {
         u8g2.setCursor(45, 115);
         u8g2.print(metronome.beatCounter + 1);
         u8g2.print("/");
-        u8g2.print(metronome.beatsPerBar);
+        u8g2.print(metronome.getBeatsPerBar());
     } else {
         u8g2.drawCircle(cx, cy, 10);
         u8g2.setCursor(40, 115);
@@ -603,8 +634,7 @@ void drawMenuScreen() {
         
         if (i == 0) {
              u8g2.print("Metric: ");
-             u8g2.print(metronome.beatsPerBar);
-             u8g2.print("/4");
+             u8g2.print(timeSignatures[metronome.timeSigIdx].label);
         } else {
              u8g2.print(menuItems[i]);
         }
@@ -641,17 +671,20 @@ void drawTimeSigScreen() {
     
     // Big number
     u8g2.setFont(u8g2_font_logisoso42_tn);
-    u8g2.setCursor(40, 70);
-    u8g2.print(metronome.beatsPerBar);
+    // Center logic approx for "12/8" vs "4/4"
+    const char* lbl = timeSignatures[metronome.timeSigIdx].label;
+    int w = u8g2.getStrWidth(lbl);
+    u8g2.setCursor((128 - w)/2, 70);
+    u8g2.print(lbl);
     
     u8g2.setFont(u8g2_font_profont12_mf);
-    if (metronome.beatsPerBar == 1) u8g2.drawStr(30, 90, "No Accent");
-    else {
-        u8g2.setCursor(30, 90);
-        u8g2.print(metronome.beatsPerBar);
-        u8g2.print(" Beats/Bar");
-    }
-    
+    // Info
+    u8g2.setCursor(30, 90);
+    int n = metronome.getBeatsPerBar();
+    u8g2.print(n);
+    if (n == 1) u8g2.print(" Beat/Bar");
+    else u8g2.print(" Beats/Bar");
+
     // Arrows
     u8g2.drawTriangle(10, 50, 25, 40, 25, 60); // Left
     u8g2.drawTriangle(118, 50, 103, 40, 103, 60); // Right
@@ -811,8 +844,8 @@ void drawPresetScreen() {
         } else {
              // Existing data
              pBpm = prefs.getInt(key, 120);
-             char keyTs[16]; sprintf(keyTs, "p%d_ts", presetSlot);
-             pTs = prefs.getInt(keyTs, 4);
+             char keyTs[16]; sprintf(keyTs, "p%d_ts_idx", presetSlot);
+             int tsIdx = prefs.getInt(keyTs, 3); // Default 4/4
              
              // Display Logic: "4/4 @ 120"
              u8g2.setFont(u8g2_font_logisoso24_tn);
@@ -823,8 +856,11 @@ void drawPresetScreen() {
              u8g2.setFont(u8g2_font_profont12_mf);
              u8g2.drawStr(70, 70, "BPM");
              
-             sprintf(infoBuf, "%d/4", pTs);
-             u8g2.drawStr(70, 85, infoBuf);
+             // Use label from array
+             // Safety check
+             if(tsIdx < 0 || tsIdx >= NUM_TIME_SIGS) tsIdx = 3;
+             
+             u8g2.drawStr(70, 85, timeSignatures[tsIdx].label);
         }
     }
 
@@ -861,7 +897,7 @@ void enterDeepSleep() {
 
 void saveSettings() {
     prefs.putInt("bpm", metronome.bpm);
-    prefs.putInt("ts", metronome.beatsPerBar);
+    prefs.putInt("ts_idx", metronome.timeSigIdx); // Changed from ts to ts_idx
     prefs.putInt("vol", audio.getVolume());
     prefs.putFloat("a4", a4Reference);
     prefs.putBool("haptic", hapticEnabled);
@@ -869,7 +905,19 @@ void saveSettings() {
 
 void loadSettings() {
     metronome.bpm = prefs.getInt("bpm", 120);
-    metronome.beatsPerBar = prefs.getInt("ts", 4);
+    // Migration logic for old ts
+    if (prefs.isKey("ts_idx")) {
+        metronome.timeSigIdx = prefs.getInt("ts_idx", 3); // 3 = 4/4
+    } else {
+        // Fallback or migration
+        int oldTs = prefs.getInt("ts", 4);
+        // Map oldTs (1..12) to indices if valid?
+        // E.g. if oldTs == 4, use 4/4 (idx 3)
+        // Simple map: if 1..7 use x-1. If >7 default to 4/4
+        if (oldTs >=1 && oldTs <= 7) metronome.timeSigIdx = oldTs - 1;
+        else metronome.timeSigIdx = 3; 
+    }
+    
     int vol = prefs.getInt("vol", 50);
     a4Reference = prefs.getFloat("a4", 440.0f);
     hapticEnabled = prefs.getBool("haptic", true);
@@ -882,8 +930,8 @@ void savePreset(int slot) {
     char key[16];
     sprintf(key, "p%d_bpm", slot);
     prefs.putInt(key, metronome.bpm);
-    sprintf(key, "p%d_ts", slot);
-    prefs.putInt(key, metronome.beatsPerBar);
+    sprintf(key, "p%d_ts_idx", slot);
+    prefs.putInt(key, metronome.timeSigIdx);
     sprintf(key, "p%d_vol", slot);
     prefs.putInt(key, audio.getVolume());
     sprintf(key, "p%d_a4", slot);
@@ -894,8 +942,11 @@ void loadPreset(int slot) {
     char key[16];
     sprintf(key, "p%d_bpm", slot);
     metronome.bpm = prefs.getInt(key, metronome.bpm);
-    sprintf(key, "p%d_ts", slot);
-    metronome.beatsPerBar = prefs.getInt(key, metronome.beatsPerBar);
+    sprintf(key, "p%d_ts_idx", slot);
+    // Presets might need migration too if kept long term, but assuming fresh oroverwrite
+    // Default to current sig if fail
+    metronome.timeSigIdx = prefs.getInt(key, metronome.timeSigIdx); 
+    
     sprintf(key, "p%d_vol", slot);
     int vol = prefs.getInt(key, audio.getVolume());
     sprintf(key, "p%d_a4", slot);
