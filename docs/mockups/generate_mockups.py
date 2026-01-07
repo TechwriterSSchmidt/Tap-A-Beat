@@ -62,8 +62,8 @@ def draw_menu_screen():
     draw.line((0, 12, 128, 12), fill=FG_COLOR)
     
     # Items
-    items = ["Metric: 4/4", "Taptronic", "Tuner", "Load Preset", "Save Preset", "Exit"]
-    selection = 1 # Select Taptronic to highlight it
+    items = ["Metric: 4/4", "Taptronic", "Tuner", "Presets", "Exit"]
+    selection = 3 # Select Presets to show change
     
     y = 30
     h = 14
@@ -76,7 +76,47 @@ def draw_menu_screen():
         else:
             draw.text((4, y + (i*h) - 8), item, font=font_item, fill=FG_COLOR)
             
-    img.save(os.path.join(OUTPUT_DIR, "screen_menu.png"))
+    # Resize for higher quality display in README (2x)
+    img_resized = img.resize((512, 512), Image.NEAREST)
+    img_resized.save(os.path.join(OUTPUT_DIR, "screen_menu.png"))
+
+def draw_presets_menu_screen(): # New
+    # Matches drawPresetsMenuScreen
+    img = create_base_image()
+    draw = ImageDraw.Draw(img)
+    
+    font_header = get_font(12)
+    font_item = get_font(10)
+    
+    # Header
+    draw.text((0, 0), "- PRESETS -", font=font_header, fill=FG_COLOR)
+    draw.line((0, 12, 128, 12), fill=FG_COLOR)
+    
+    # Items
+    items = ["Load Preset", "Save Preset", "Back"]
+    selection = 0
+    
+    y = 30
+    h = 18 # Larger spacing as per code
+    
+    for i, item in enumerate(items):
+        if i == selection:
+            # Centered items
+            # drawBox(10, startY + i*h - 10, 108, 14);
+            draw.rectangle((10, y - 10 + (i*h), 118, y + 4 + (i*h)), fill=FG_COLOR)
+            
+            # Text Centering (Approx)
+            text_w = len(item) * 6 # Rough est
+            x = (128 - text_w) // 2
+            draw.text((x, y + (i*h) - 8), item, font=font_item, fill=BG_COLOR)
+        else:
+            text_w = len(item) * 6 # Rough est
+            x = (128 - text_w) // 2
+            draw.text((x, y + (i*h) - 8), item, font=font_item, fill=FG_COLOR)
+
+    # Resize for higher quality display in README (2x)
+    img_resized = img.resize((512, 512), Image.NEAREST)
+    img_resized.save(os.path.join(OUTPUT_DIR, "screen_presets_menu.png"))
 
 def draw_set_bpm_screen():
     # Reusing filename for "Time Sig" screen as "Set BPM" is gone from menu
@@ -100,7 +140,8 @@ def draw_set_bpm_screen():
     # Bottom text
     draw.text((30, 80), "4 Beats/Bar", font=font_small, fill=FG_COLOR)
     
-    img.save(os.path.join(OUTPUT_DIR, "screen_set_bpm.png")) # Keep filename for README compat
+    img_resized = img.resize((512, 512), Image.NEAREST)
+    img_resized.save(os.path.join(OUTPUT_DIR, "screen_set_bpm.png")) # Keep filename for README compat
 
 def draw_tap_tempo_screen():
     # Matches drawTapScreen (Taptronic)
@@ -141,11 +182,43 @@ def draw_tap_tempo_screen():
     draw.text((10, 110), "Sens: 50%", font=font_small, fill=FG_COLOR)
     draw.text((70, 110), "TAP NOW!", font=font_small, fill=FG_COLOR)
     
-    img.save(os.path.join(OUTPUT_DIR, "screen_tap_tempo.png"))
+    img_resized = img.resize((512, 512), Image.NEAREST)
+    img_resized.save(os.path.join(OUTPUT_DIR, "screen_tap_tempo.png"))
 
 if __name__ == "__main__":
+    
+    # Helper for resizing metronome too
+    def draw_metronome_screen():
+        # Matches drawMetronomeScreen in main.cpp
+        img = create_base_image()
+        draw = ImageDraw.Draw(img)
+        
+        # BPM (Logisoso42 approx)
+        font_bpm = get_font(42)
+        draw.text((20, 15), "120", font=font_bpm, fill=FG_COLOR)
+        
+        # "BPM" Label (ProFont12)
+        font_small = get_font(12)
+        draw.text((95, 50), "BPM", font=font_small, fill=FG_COLOR)
+        
+        # Beat Visual (Disc at 64, 90)
+        cx, cy = 64, 90
+        r = 10
+        draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=FG_COLOR, width=1)
+        
+        # Beat Counter "1/4"
+        draw.text((45, 105), "1/4", font=font_small, fill=FG_COLOR)
+        
+        # Volume Bar (Bottom)
+        vol_w = 64 # 50% volume
+        draw.rectangle((0, 124, vol_w, 128), fill=FG_COLOR)
+        
+        img_resized = img.resize((512, 512), Image.NEAREST)
+        img_resized.save(os.path.join(OUTPUT_DIR, "screen_metronome.png"))
+
     draw_metronome_screen()
     draw_menu_screen()
+    draw_presets_menu_screen()
     draw_set_bpm_screen()
     draw_tap_tempo_screen()
     print("Mockups generated in " + OUTPUT_DIR)
