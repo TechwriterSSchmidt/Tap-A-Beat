@@ -49,8 +49,7 @@ def draw_metronome_screen():
     vol_w = 64 # 50% volume
     draw.rectangle((0, 124, vol_w, 128), fill=FG_COLOR)
     
-    img_resized = img.resize((512, 512), Image.NEAREST)
-    img_resized.save(os.path.join(OUTPUT_DIR, "screen_metronome.png"))
+    img.save(os.path.join(OUTPUT_DIR, "screen_metronome.png"))
 
 def draw_quick_menu_screen():
     # Matches drawQuickMenuScreen in main.cpp
@@ -103,11 +102,10 @@ def draw_quick_menu_screen():
         draw.text((75, y), values[i], font=font_item, fill=FG_COLOR)
         
     # Footer
-    font_tiny = get_font(8)
+    font_tiny = get_font(12) # Was 8. Increased for readability
     draw.text((25, 105), "Click: Edit/Save", font=font_tiny, fill=FG_COLOR)
     
-    img_resized = img.resize((512, 512), Image.NEAREST)
-    img_resized.save(os.path.join(OUTPUT_DIR, "screen_quick_menu.png"))
+    img.save(os.path.join(OUTPUT_DIR, "screen_quick_menu.png"))
 
 def draw_menu_screen():
     # Matches drawMenuScreen
@@ -136,9 +134,7 @@ def draw_menu_screen():
         else:
             draw.text((4, y + (i*h) - 8), item, font=font_item, fill=FG_COLOR)
             
-    # Resize for higher quality display in README (2x)
-    img_resized = img.resize((512, 512), Image.NEAREST)
-    img_resized.save(os.path.join(OUTPUT_DIR, "screen_menu.png"))
+    img.save(os.path.join(OUTPUT_DIR, "screen_menu.png"))
 
 def draw_presets_menu_screen():
     # Matches drawPresetsMenuScreen
@@ -171,8 +167,7 @@ def draw_presets_menu_screen():
             x = (128 - text_w) // 2
             draw.text((x, y + (i*h) - 8), item, font=font_item, fill=FG_COLOR)
 
-    img_resized = img.resize((512, 512), Image.NEAREST)
-    img_resized.save(os.path.join(OUTPUT_DIR, "screen_presets_menu.png"))
+    img.save(os.path.join(OUTPUT_DIR, "screen_presets_menu.png"))
 
 def draw_set_bpm_screen():
     # Reusing filename for "Time Sig" screen as "Set BPM" is gone from menu
@@ -194,8 +189,7 @@ def draw_set_bpm_screen():
     # Bottom text
     draw.text((30, 80), "4 Beats/Bar", font=font_small, fill=FG_COLOR)
     
-    img_resized = img.resize((512, 512), Image.NEAREST)
-    img_resized.save(os.path.join(OUTPUT_DIR, "screen_set_bpm.png"))
+    img.save(os.path.join(OUTPUT_DIR, "screen_set_bpm.png"))
 
 def draw_tap_tempo_screen():
     # Matches drawTapScreen (Taptronic)
@@ -231,8 +225,7 @@ def draw_tap_tempo_screen():
     draw.text((10, 110), "Sens: 50%", font=font_small, fill=FG_COLOR)
     draw.text((70, 110), "TAP NOW!", font=font_small, fill=FG_COLOR)
     
-    img_resized = img.resize((512, 512), Image.NEAREST)
-    img_resized.save(os.path.join(OUTPUT_DIR, "screen_tap_tempo.png"))
+    img.save(os.path.join(OUTPUT_DIR, "screen_tap_tempo.png"))
 
 if __name__ == "__main__":
     draw_metronome_screen()

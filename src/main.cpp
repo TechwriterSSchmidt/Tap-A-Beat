@@ -1406,7 +1406,9 @@ void drawQuickMenuScreen() {
         }
     }
     
-    u8g2.setFont(u8g2_font_tiny5_tf);
+    // u8g2.setFont(u8g2_font_tiny5_tf); // Too small
+    u8g2.setFont(u8g2_font_profont10_mr);
     u8g2.drawStr(25, 105, "Click: Edit/Save");
 }
+
 
