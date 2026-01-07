@@ -2,7 +2,9 @@
 #include <U8g2lib.h>
 #include <ESP32Encoder.h>
 #include <Wire.h>
-#include <Preferences.h> // Save settings
+#include <Preferences.h>
+#include <driver/ledc.h>
+#include <Adafruit_NeoPixel.h>
 #include "config.h"
 #include "AudioEngine.h"
 #include "Tuner.h"
@@ -15,14 +17,17 @@ ESP32Encoder encoder;
 AudioEngine audio;
 Tuner tuner;
 Preferences prefs;
+Adafruit_NeoPixel pixels(WS2812_NUM_LEDS, WS2812_PIN, NEO_GRB + NEO_KHZ800);
 
 // --- State Management -------------------------------------------------------
 enum AppState {
     STATE_METRONOME,
     STATE_MENU,
     STATE_TUNER,
-    STATE_AM_TIME_SIG,
-    STATE_AM_BPM // New Edit State
+    STATE_AM_TIME_SIG, // Adjustment Menu: Time Signature
+    STATE_AM_BPM,      // Adjustment Menu: BPM (via Menu)
+    STATE_TAP_TEMPO,   // New Tap State
+    STATE_PRESET_SELECT // Loading/Saving
 };
 
 AppState currentState = STATE_METRONOME;
@@ -31,16 +36,30 @@ AppState currentState = STATE_METRONOME;
 struct MetronomeState {
     volatile int bpm = 120;
     volatile bool isPlaying = false;
+    unsigned long lastBeatTime = 0;
     volatile int beatCounter = 0; // 0 = first beat (Accent)
     volatile int beatsPerBar = 4; // Top number (4/4 -> 4)
+
+    void resetBeat() {
+        beatCounter = 0;
+        lastBeatTime = millis();
+    }
 } metronome;
 
-TaskHandle_t audioTaskHandle = NULL;
+TaskHandle_t metronomeTaskHandle = NULL;
 
 // --- Menu Logic -------------------------------------------------------------
-const char* menuItems[] = {"Speed (BPM)", "Time Signature", "Tuner", "Exit"};
+const char* menuItems[] = {"Speed (BPM)", "Metric", "Tap Tempo", "Tuner", "Load Preset", "Save Preset", "Exit"};
 int menuSelection = 0;
-int menuCount = 4;
+int menuCount = 7;
+
+enum PresetMode {
+    PRESET_LOAD,
+    PRESET_SAVE
+};
+int presetSlot = 0; // 0 to NUM_PRESETS-1
+PresetMode presetMode = PRESET_LOAD;
+#define NUM_PRESETS 5
 
 // --- Encoder / Input State --------------------------------------------------
 long lastEncoderValue = 0;
@@ -48,14 +67,30 @@ unsigned long buttonPressTime = 0;
 bool buttonActive = false;
 bool isVolumeAdjustment = false;
 bool isTunerToneOn = false;
+bool buttonStableState = false;
+bool buttonLastRead = false;
+unsigned long buttonLastChange = 0;
 
-// --- Tap Tempo Logic --------------------------------------------------------
+// Tap Tempo Globals
+float tapSensitivity = 0.5f; // 0.0 to 1.0
+float tapInputLevel = 0.0f;
 unsigned long lastTapTime = 0;
 unsigned long tapIntervalAccumulator = 0;
 int tapCount = 0;
 bool showTapVisual = false;
 unsigned long tapVisualStartTime = 0;
 #define TAP_TIMEOUT 2000 // Reset tap sequence after 2s silence
+
+// Haptics & Visuals
+bool hapticEnabled = true;
+unsigned long feedbackOffAt = 0;
+int hapticNormalDuty = 400; // 10-bit duty (0-1023)
+int hapticAccentDuty = 700;
+int feedbackPulseMs = 40;
+
+// Settings persistence
+float a4Reference = 440.0f;
+int tempBPM = 120; // For Adjust BPM Screen
 
 // --- Power Management -------------------------------------------------------
 unsigned long lastActivityTime = 0;
@@ -65,11 +100,17 @@ void drawMetronomeScreen();
 void drawMenuScreen();
 void drawTunerScreen(float freq, String note, int cents);
 void drawTimeSigScreen();
-void drawBPMScreen(); // New
+void drawBPMScreen(); 
+void drawTapScreen();
+void drawPresetScreen();
 void enterDeepSleep();
+void saveSettings();
+void loadSettings();
+void savePreset(int slot);
+void loadPreset(int slot);
 
-// --- Audio Task (High Precision on Core 0) ----------------------------------
-void audioTask(void * parameter) {
+// --- Audio Task (High Precision Metronome Trigger on Core 0) ----------------
+void metronomeTask(void * parameter) {
     unsigned long lastBeat = millis();
     
     for(;;) {
@@ -97,11 +138,6 @@ void audioTask(void * parameter) {
              lastBeat = millis(); // Reset reference
         }
         
-        // Tuner Tone logic here to unblock UI
-        if (currentState == STATE_TUNER && isTunerToneOn) {
-            audio.updateTone();
-        }
-
         vTaskDelay(1 / portTICK_PERIOD_MS); // Yield
     }
 }
@@ -114,32 +150,72 @@ void setup() {
     // Hardware Init
     audio.begin();
     u8g2.begin();
+    tuner.begin();
     
+    // Pixels
+    pixels.begin();
+    pixels.setBrightness(200);
+    pixels.clear();
+    pixels.show();
+
     // Preferences Init
     prefs.begin("taktobeat", false);
-    metronome.bpm = prefs.getInt("bpm", 120);
-    metronome.beatsPerBar = prefs.getInt("sig", 4);
-    int savedVol = prefs.getInt("vol", 50);
-    audio.setVolume(savedVol);
+    loadSettings();
     
     ESP32Encoder::useInternalWeakPullResistors = UP;
     encoder.attachHalfQuad(ENC_PIN_A, ENC_PIN_B);
     encoder.setCount(metronome.bpm * 2);
+    lastEncoderValue = encoder.getCount() / 2;
     pinMode(ENC_BUTTON, INPUT_PULLUP);
     
-    // Start Mic for Tap Tempo if desired?
-    // We only enable mic when not playing to save power/conflict?
-    // Actually, users might want to tap *while* playing to sync? 
-    // Hard to distinguish click from tap. Let's enable when STOPPED.
-    tuner.begin(); 
-    
+    // Haptic PWM init (LEDC Legacy API for Core 2.0.x)
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .timer_num = LEDC_TIMER_0,
+        .freq_hz = HAPTIC_PWM_FREQ,
+        .clk_cfg = LEDC_AUTO_CLK
+    };
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num = HAPTIC_PIN,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = (ledc_channel_t)HAPTIC_PWM_CH,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER_0,
+        .duty = 0,
+        .hpoint = 0
+    };
+    ledc_channel_config(&ledc_channel);
+
+    // Callback handles Haptic + Visuals
+    audio.setBeatCallback([](bool accent){
+        // 1. Haptic
+        if (hapticEnabled) {
+            int duty = accent ? hapticAccentDuty : hapticNormalDuty;
+            ledc_set_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)HAPTIC_PWM_CH, duty);
+            ledc_update_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)HAPTIC_PWM_CH);
+        }
+        
+        // 2. Visual (WS2812)
+        if (accent) {
+            pixels.setPixelColor(0, pixels.Color(255, 0, 0)); // Red
+        } else {
+            pixels.setPixelColor(0, pixels.Color(0, 0, 255)); // Blue
+        }
+        pixels.show();
+
+        feedbackOffAt = millis() + feedbackPulseMs;
+    });
+
     lastActivityTime = millis();
     
     // Create Audio Task on Core 0
     xTaskCreatePinnedToCore(
-      audioTask,   "AudioTask", 
+      metronomeTask,   "MetronomeTask", 
       4096,        NULL, 
-      2,           &audioTaskHandle, 
+      2,           &metronomeTaskHandle, 
       0            
     );
 
@@ -157,13 +233,97 @@ void loop() {
     if (delta != 0) lastActivityTime = now;
 
     // Button
-    bool btnState = (digitalRead(ENC_BUTTON) == LOW);
-    if (btnState) lastActivityTime = now;
-
-    if (btnState && !buttonActive) {
-        buttonActive = true;
-        buttonPressTime = now;
-    } 
+    bool rawBtn = (digitalRead(ENC_BUTTON) == LOW);
+    if (rawBtn != buttonLastRead) {
+        buttonLastRead = rawBtn;
+        buttonLastChange = now;
+    }
+    
+    if ((now - buttonLastChange) > 20) { // Debounce
+        if (buttonStableState != rawBtn) {
+            buttonStableState = rawBtn;
+            if (buttonStableState) { // Press
+                buttonActive = true;
+                buttonPressTime = now;
+                lastActivityTime = now;
+            } else { // Release
+                buttonActive = false;
+                long duration = now - buttonPressTime;
+                isVolumeAdjustment = false;
+                
+                if (duration < 500) { // Short Click
+                    if (currentState == STATE_METRONOME) {
+                         metronome.isPlaying = !metronome.isPlaying;
+                         if (metronome.isPlaying) metronome.beatCounter = 0;
+                         saveSettings();
+                    } else if (currentState == STATE_MENU) {
+                        if (menuSelection == 0) { // BPM
+                             currentState = STATE_AM_BPM;
+                             tempBPM = metronome.bpm;
+                        } else if (menuSelection == 1) { // Time Sig
+                             currentState = STATE_AM_TIME_SIG;
+                        } else if (menuSelection == 2) { // Tap Tempo
+                             currentState = STATE_TAP_TEMPO;
+                             tuner.begin(); // Enable mic
+                             lastTapTime = 0;
+                             tapCount = 0;
+                        } else if (menuSelection == 3) { // Tuner
+                             currentState = STATE_TUNER;
+                             tuner.begin(); 
+                        } else if (menuSelection == 4) { // Load
+                             currentState = STATE_PRESET_SELECT;
+                             presetMode = PRESET_LOAD;
+                        } else if (menuSelection == 5) { // Save
+                             currentState = STATE_PRESET_SELECT;
+                             presetMode = PRESET_SAVE;
+                        } else if (menuSelection == 6) { // Exit
+                             currentState = STATE_METRONOME;
+                        }
+                    } else if (currentState == STATE_TUNER) {
+                        isTunerToneOn = !isTunerToneOn;
+                        if (isTunerToneOn) {
+                            audio.startTone(a4Reference);
+                            tuner.stop();
+                        } else {
+                            audio.stopTone();
+                            tuner.begin();
+                        }
+                    } else if (currentState == STATE_AM_TIME_SIG) {
+                        currentState = STATE_MENU;
+                        saveSettings();
+                    } else if (currentState == STATE_AM_BPM) {
+                        currentState = STATE_MENU;
+                        metronome.bpm = tempBPM;
+                        encoder.setCount(metronome.bpm * 2);
+                        saveSettings();
+                    } else if (currentState == STATE_TAP_TEMPO) {
+                        // Confirm tap BPM? Or just exit?
+                        currentState = STATE_MENU;
+                        tuner.stop();
+                        saveSettings();
+                    } else if (currentState == STATE_PRESET_SELECT) {
+                        if (presetMode == PRESET_LOAD) loadPreset(presetSlot);
+                        else savePreset(presetSlot);
+                        currentState = STATE_MENU;
+                    }
+                } else { // Long Press
+                    if (currentState == STATE_METRONOME) {
+                        metronome.isPlaying = false;
+                        currentState = STATE_MENU;
+                        lastEncoderValue = newEncVal; // Reset delta
+                        encoder.setCount(menuSelection * 2); // Map encoder to menu? No, prefer delta.
+                    } else if (currentState == STATE_TUNER || currentState == STATE_TAP_TEMPO) {
+                        isTunerToneOn = false;
+                        audio.stopTone();
+                        tuner.stop();
+                        currentState = STATE_MENU;
+                    } else if (currentState != STATE_MENU) {
+                         currentState = STATE_MENU;
+                    }
+                }
+            }
+        }
+    }
     
     // Volume Control (Press & Turn)
     if (buttonActive && delta != 0 && currentState == STATE_METRONOME) {
@@ -177,61 +337,6 @@ void loop() {
         delta = 0; 
         encoder.setCount(lastEncoderValue * 2); 
         newEncVal = lastEncoderValue;
-    }
-
-    if (!btnState && buttonActive) { // Released
-        buttonActive = false;
-        long duration = now - buttonPressTime;
-        isVolumeAdjustment = false;
-        
-        if (duration < 500) { // Short Click
-            if (currentState == STATE_METRONOME) {
-                 metronome.isPlaying = !metronome.isPlaying;
-                 if (metronome.isPlaying) metronome.beatCounter = 0;
-            } else if (currentState == STATE_MENU) {
-                if (menuSelection == 0) { // BPM
-                     currentState = STATE_AM_BPM;
-                } else if (menuSelection == 1) { // Time Sig
-                     currentState = STATE_AM_TIME_SIG;
-                } else if (menuSelection == 2) { // Tuner
-                     currentState = STATE_TUNER;
-                     tuner.begin(); 
-                } else if (menuSelection == 3) { // Exit
-                     currentState = STATE_METRONOME;
-                }
-            } else if (currentState == STATE_TUNER) {
-                isTunerToneOn = !isTunerToneOn;
-                if (isTunerToneOn) {
-                    audio.startTone(440.0);
-                    tuner.stop();
-                } else {
-                    audio.stopTone();
-                    tuner.begin();
-                }
-            } else if (currentState == STATE_AM_TIME_SIG) {
-                // Confirm selection -> Go back to Menu (or Metronome?)
-                currentState = STATE_MENU;
-            } else if (currentState == STATE_AM_BPM) {
-                // Confirm selection -> Go back to Menu
-                currentState = STATE_MENU;
-            }
-        } else { // Long Press
-            if (currentState == STATE_METRONOME) {
-                metronome.isPlaying = false;
-                currentState = STATE_MENU;
-            } else if (currentState == STATE_TUNER) {
-                isTunerToneOn = false;
-                audio.stopTone();
-                tuner.stop();
-                currentState = STATE_MENU;
-            } else if (currentState == STATE_MENU) {
-                currentState = STATE_METRONOME;
-            } else if (currentState == STATE_AM_TIME_SIG) {
-                currentState = STATE_MENU; // Cancel / Back
-            } else if (currentState == STATE_AM_BPM) {
-                currentState = STATE_MENU; // Cancel / Back
-            }
-        }
     }
 
     // Encoder State Logic
@@ -249,49 +354,55 @@ void loop() {
             if (metronome.beatsPerBar < 1) metronome.beatsPerBar = 1;
             if (metronome.beatsPerBar > 12) metronome.beatsPerBar = 12; // Allow up to 12
         } else if (currentState == STATE_AM_BPM) {
-            metronome.bpm += delta;
-            if (metronome.bpm < 30) metronome.bpm = 30;
-            if (metronome.bpm > 300) metronome.bpm = 300;
+            tempBPM += delta;
+            if (tempBPM < 30) tempBPM = 30;
+            if (tempBPM > 300) tempBPM = 300;
+        } else if (currentState == STATE_PRESET_SELECT) {
+            presetSlot += delta;
+            if (presetSlot < 0) presetSlot = 0;
+            if (presetSlot >= NUM_PRESETS) presetSlot = NUM_PRESETS - 1;
+        } else if (currentState == STATE_TAP_TEMPO) {
+            tapSensitivity += (delta * 0.05f);
+            if (tapSensitivity < 0.1f) tapSensitivity = 0.1f;
+            if (tapSensitivity > 1.0f) tapSensitivity = 1.0f;
+        } else if (currentState == STATE_TUNER && isTunerToneOn) {
+            a4Reference += delta;
+            if (a4Reference < 400) a4Reference = 400;
+            if (a4Reference > 480) a4Reference = 480;
+            audio.startTone(a4Reference);
+            tuner.setA4Reference(a4Reference);
         }
         lastEncoderValue = newEncVal;
     }
-
-    // --- Tap Tempo Detection (Only if Metronome stopped) ---
-    if (currentState == STATE_METRONOME && !metronome.isPlaying) {
-         int32_t amp = tuner.getAmplitude();
-         // Serial.println(amp); // debug
-         
-         // Threshold check (tune this!)
-         if (amp > 8000000) { // Needs empirical testing
-             if (now - lastTapTime > 150) { // Debounce 150ms
-                 
+    
+    // Tap Tempo Analysis
+    if (currentState == STATE_TAP_TEMPO) {
+        float lvl = tuner.readLevel();
+        tapInputLevel = (lvl / 15000000.0f); // Normalize roughly 0-1
+        // Dynamic threshold
+        float threshold = 5000000.0f + (1.0f - tapSensitivity) * 10000000.0f;
+        
+        if (lvl > threshold) {
+             if (now - lastTapTime > 150) { // Debounce
                  lastActivityTime = now;
-                 showTapVisual = true;
-                 tapVisualStartTime = now;
-                 
-                 // Logic
                  if (now - lastTapTime > TAP_TIMEOUT) {
-                     // First tap of new sequence
                      tapCount = 1;
                      tapIntervalAccumulator = 0;
                  } else {
                      tapCount++;
                      tapIntervalAccumulator += (now - lastTapTime);
-                     
                      if (tapCount >= 2) {
-                         // Calculate BPM
-                         float avgInterval = (float)tapIntervalAccumulator / (float)(tapCount - 1);
-                         int newBpm = (int)(60000.0 / avgInterval);
-                         
-                         if (newBpm >= 30 && newBpm <= 300) {
-                             metronome.bpm = newBpm;
-                             encoder.setCount(metronome.bpm * 2); // Update encoder tracking
-                         }
+                          float avg = (float)tapIntervalAccumulator / (float)(tapCount - 1);
+                          int b = (int)(60000.0f / avg);
+                          if (b >= 30 && b <= 300) {
+                              metronome.bpm = b;
+                              encoder.setCount(metronome.bpm * 2);
+                          }
                      }
                  }
                  lastTapTime = now;
              }
-         }
+        }
     }
 
     // 2. Drawing
@@ -310,9 +421,15 @@ void loop() {
         case STATE_AM_BPM:
             drawBPMScreen();
             break;
+        case STATE_TAP_TEMPO:
+            drawTapScreen();
+            break;
+        case STATE_PRESET_SELECT:
+            drawPresetScreen();
+            break;
         case STATE_TUNER:
              if (isTunerToneOn) {
-                 drawTunerScreen(440, "A4", 0);
+                 drawTunerScreen(a4Reference, "A4", 0);
              } else {
                  float f = tuner.getFrequency();
                  int cents = 0;
@@ -321,11 +438,23 @@ void loop() {
              }
             break;
     }
-    
     u8g2.sendBuffer();
 
+    // Haptic/LED Off Timer
+    if (feedbackOffAt && now > feedbackOffAt) {
+        // Haptic Off
+        ledc_set_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)HAPTIC_PWM_CH, 0);
+        ledc_update_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)HAPTIC_PWM_CH);
+        
+        // LED Off
+        pixels.setPixelColor(0, 0);
+        pixels.show();
+        
+        feedbackOffAt = 0;
+    }
+
     // 3. Auto Off
-    if (!metronome.isPlaying && currentState != STATE_TUNER && (now - lastActivityTime > AUTO_OFF_MS)) {
+    if (!metronome.isPlaying && currentState != STATE_TUNER && currentState != STATE_TAP_TEMPO && (now - lastActivityTime > AUTO_OFF_MS)) {
         enterDeepSleep();
     }
 }
@@ -345,16 +474,16 @@ void drawMetronomeScreen() {
     int cx = 64; 
     int cy = 90;
     
-    // Tap Visual
+    // Tap Visual Overlay
     if (showTapVisual) {
         if (millis() - tapVisualStartTime > 200) showTapVisual = false;
         u8g2.setFont(u8g2_font_logisoso24_tn);
         u8g2.drawStr(35, 110, "TAP!");
-        return; // Override standard visual
+        return; 
     }
 
     // Volume Overlay (when adjusting)
-    if (buttonActive) {
+    if (buttonActive && isVolumeAdjustment) {
         u8g2.setDrawColor(0);
         u8g2.drawBox(14, 40, 100, 50); // Clear area
         u8g2.setDrawColor(1);
@@ -366,7 +495,7 @@ void drawMetronomeScreen() {
         u8g2.setFont(u8g2_font_logisoso24_tn);
         u8g2.setCursor(45, 85);
         u8g2.print(audio.getVolume());
-        return; // Skip drawing the rest of the standard UI
+        return; // Skip drawing the rest
     }
 
     if (metronome.isPlaying) {
@@ -382,31 +511,33 @@ void drawMetronomeScreen() {
         u8g2.print("STOP");
     }
     
-    // Volume
+    // Volume Bar
     int volW = map(audio.getVolume(), 0, 100, 0, 128);
     u8g2.drawBox(0, 124, volW, 4);
 }
 
 void drawMenuScreen() {
     u8g2.setFont(u8g2_font_profont12_mf);
-    u8g2.drawStr(0, 12, "--- MENU ---");
+    u8g2.drawStr(0, 10, "-- MENU --");
+    u8g2.drawLine(0, 12, 128, 12);
     
     int startY = 30;
-    int h = 16;
+    int h = 14;
     
     for (int i = 0; i < menuCount; i++) {
         if (i == menuSelection) {
-            u8g2.drawStr(0, startY + i*h + 10, ">");
+            u8g2.drawBox(0, startY + i*h - 9, 128, 11);
+            u8g2.setDrawColor(0);
+        } else {
+            u8g2.setDrawColor(1);
         }
-        u8g2.setCursor(12, startY + i*h + 10);
+        
+        u8g2.setCursor(4, startY + i*h);
         
         if (i == 0) {
-             // Dynamic Label for BPM
              u8g2.print("Speed: ");
              u8g2.print(metronome.bpm);
-             u8g2.print(" bpm");
         } else if (i == 1) {
-             // Dynamic Label for Time Sig
              u8g2.print("Metric: ");
              u8g2.print(metronome.beatsPerBar);
              u8g2.print("/4");
@@ -414,6 +545,7 @@ void drawMenuScreen() {
              u8g2.print(menuItems[i]);
         }
     }
+    u8g2.setDrawColor(1);
 }
 
 void drawTimeSigScreen() {
@@ -446,7 +578,9 @@ void drawTunerScreen(float freq, String note, int cents) {
     if (isTunerToneOn) {
         u8g2.drawStr(80, 10, "[TONE]");
         u8g2.setFont(u8g2_font_profont12_mf);
-        u8g2.drawStr(30, 60, "A4 = 440Hz");
+        char a4buf[24];
+        sprintf(a4buf, "A4 = %.1fHz", a4Reference);
+        u8g2.drawStr(20, 60, a4buf);
         return; 
     }
 
@@ -475,9 +609,9 @@ void drawTunerScreen(float freq, String note, int cents) {
     u8g2.drawLine(64, 92, 64, 108); 
     u8g2.drawBox(x-2, 95, 4, 10); 
 
-    if (abs(cents) < 5) u8g2.drawStr(50, 90, "* OK *");
-    else if (cents < 0) u8g2.drawStr(10, 90, "<< FLAT");
-    else u8g2.drawStr(80, 90, "SHARP >>");
+    if (cents < -5) u8g2.drawStr(10, 90, "FLAT");
+    else if (cents > 5) u8g2.drawStr(90, 90, "SHARP");
+    else u8g2.drawStr(50, 90, "* OK *");
 }
 
 void drawBPMScreen() {
@@ -486,9 +620,11 @@ void drawBPMScreen() {
     
     // Big number
     u8g2.setFont(u8g2_font_logisoso42_tn);
-    int w = u8g2.getStrWidth(String(metronome.bpm).c_str());
+    char buf[8];
+    sprintf(buf, "%d", tempBPM);
+    int w = u8g2.getStrWidth(buf);
     u8g2.setCursor((128 - w) / 2, 70); 
-    u8g2.print(metronome.bpm);
+    u8g2.print(tempBPM);
     
     u8g2.setFont(u8g2_font_profont12_mf);
     u8g2.drawStr(54, 90, "BPM");
@@ -496,35 +632,123 @@ void drawBPMScreen() {
     // Arrows
     u8g2.drawTriangle(10, 50, 25, 40, 25, 60); // Left
     u8g2.drawTriangle(118, 50, 103, 40, 103, 60); // Right
+    u8g2.drawStr(25, 110, "Click to Set");
+}
+
+void drawTapScreen() {
+    u8g2.setFont(u8g2_font_profont12_mf);
+    u8g2.drawStr(30, 12, "TAP TEMPO");
+    u8g2.drawLine(0, 14, 128, 14);
+    
+    int cx = 64;
+    int cy = 60;
+    
+    // Simple Heart with Lines
+    u8g2.drawLine(cx, cy + 30, cx - 30, cy - 10);
+    u8g2.drawLine(cx - 30, cy - 10, cx - 15, cy - 25);
+    u8g2.drawLine(cx - 15, cy - 25, cx, cy - 10);
+    u8g2.drawLine(cx, cy + 30, cx + 30, cy - 10);
+    u8g2.drawLine(cx + 30, cy - 10, cx + 15, cy - 25);
+    u8g2.drawLine(cx + 15, cy - 25, cx, cy - 10);
+    
+    // Fill from level
+    int level = (int)(tapInputLevel * 30);
+    if (level > 30) level = 30;
+    if (level > 0) {
+        u8g2.drawTriangle(cx, cy+30, cx - level/2, cy+30-level, cx + level/2, cy+30-level);
+    }
+    
+    char buf[32];
+    sprintf(buf, "Sens: %d%%", (int)(tapSensitivity * 100));
+    u8g2.drawStr(10, 120, buf);
+
+    if (tapCount > 1) {
+        sprintf(buf, "BPM: %d", metronome.bpm);
+        u8g2.drawStr(70, 120, buf);
+    } else {
+         u8g2.drawStr(70, 120, "TAP NOW!");
+    }
+}
+
+void drawPresetScreen() {
+    u8g2.setFont(u8g2_font_profont12_mf);
+    const char* title = (presetMode == PRESET_LOAD) ? "Load Preset" : "Save Preset";
+    u8g2.drawStr(0, 10, title);
+    u8g2.drawLine(0, 12, 128, 12);
+    char buf[24];
+    sprintf(buf, "Slot: %d", presetSlot + 1);
+    u8g2.drawStr(40, 40, buf);
+    u8g2.drawStr(10, 80, "Click to Confirm");
 }
 
 void enterDeepSleep() {
-    // Save Settings
-    prefs.putInt("bpm", metronome.bpm);
-    prefs.putInt("sig", metronome.beatsPerBar);
-    prefs.putInt("vol", audio.getVolume());
-    prefs.end();
-
+    saveSettings();
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_profont12_mf);
-    u8g2.drawStr(30, 64, "Infos Saved.");
-    u8g2.drawStr(35, 80, "Good Bye!");
+    u8g2.drawStr(30, 64, "Good Bye!");
     u8g2.sendBuffer();
-    delay(800);
+    delay(500);
     
-    u8g2.setPowerSave(1); // Screen off
+    // LEDs Off
+    pixels.clear();
+    pixels.show();
     
-    // Stop Audio
-    audio.stopTone(); 
-    // Tuner stop
+    // Stop Audio/Tuner
+    audio.stopTone();
     tuner.stop();
-
-    // Config Wakeup on Button (Pin 6 = ENC_BUTTON) Low
-    // ESP32-S3 Ext1 Wakeup
-    // Mask for GPIO 6: 1 << 6
-    uint64_t mask = (1ULL << ENC_BUTTON);
-    esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ALL_LOW);
     
+    delay(100);
+    u8g2.setPowerSave(1); // Screen off
+
+    // Wakeup Config
+    // ESP32 Classic: Use EXT0 for single pin wakeup on LOW
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)ENC_BUTTON, 0);
+
     Serial.println("Entering Deep Sleep...");
     esp_deep_sleep_start();
+}
+
+void saveSettings() {
+    prefs.putInt("bpm", metronome.bpm);
+    prefs.putInt("ts", metronome.beatsPerBar);
+    prefs.putInt("vol", audio.getVolume());
+    prefs.putFloat("a4", a4Reference);
+}
+
+void loadSettings() {
+    metronome.bpm = prefs.getInt("bpm", 120);
+    metronome.beatsPerBar = prefs.getInt("ts", 4);
+    int vol = prefs.getInt("vol", 50);
+    a4Reference = prefs.getFloat("a4", 440.0f);
+    if (vol < 0) vol = 0; if (vol > 100) vol = 100;
+    audio.setVolume(vol);
+    tuner.setA4Reference(a4Reference);
+}
+
+void savePreset(int slot) {
+    char key[16];
+    sprintf(key, "p%d_bpm", slot);
+    prefs.putInt(key, metronome.bpm);
+    sprintf(key, "p%d_ts", slot);
+    prefs.putInt(key, metronome.beatsPerBar);
+    sprintf(key, "p%d_vol", slot);
+    prefs.putInt(key, audio.getVolume());
+    sprintf(key, "p%d_a4", slot);
+    prefs.putFloat(key, a4Reference);
+}
+
+void loadPreset(int slot) {
+    char key[16];
+    sprintf(key, "p%d_bpm", slot);
+    metronome.bpm = prefs.getInt(key, metronome.bpm);
+    sprintf(key, "p%d_ts", slot);
+    metronome.beatsPerBar = prefs.getInt(key, metronome.beatsPerBar);
+    sprintf(key, "p%d_vol", slot);
+    int vol = prefs.getInt(key, audio.getVolume());
+    sprintf(key, "p%d_a4", slot);
+    a4Reference = prefs.getFloat(key, a4Reference);
+    tuner.setA4Reference(a4Reference);
+    audio.setVolume(vol);
+    encoder.setCount(metronome.bpm * 2);
+    saveSettings();
 }

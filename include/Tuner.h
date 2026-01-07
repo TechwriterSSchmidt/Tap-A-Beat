@@ -4,6 +4,10 @@
 #include "arduinoFFT.h"
 #include "config.h"
 
+#ifndef FFT_DIR_FORWARD
+#define FFT_DIR_FORWARD FFT_FORWARD
+#endif
+
 #define MIC_SAMPLE_RATE 16000
 #define FFT_SAMPLES 1024 // Power of 2
 #define NOISE_THRESHOLD 1000 // FFT Threshold
@@ -12,11 +16,18 @@
 class Tuner {
 public:
     Tuner();
-    void begin(); // Start I2S
-    void stop(); // Stop I2S
+    void begin();
+    void stop(); // Stop I2S to save power/conflict
+
+    // Configure concert pitch
+    void setA4Reference(float hz) { _a4Ref = hz; }
+    float getA4Reference() const { return _a4Ref; }
     
     // Returns frequency in Hz, or 0 if silent/noise
     float getFrequency();
+
+    // Returns simple RMS level for tap detection / AGC debug
+    float readLevel();
     
     // Returns raw max amplitude (for tap detection)
     int32_t getAmplitude(); 
@@ -34,4 +45,7 @@ private:
     double vImag[FFT_SAMPLES];
     
     bool _initialized = false;
+
+    float _agcGain = 1.0f;
+    float _a4Ref = 440.0f;
 };
