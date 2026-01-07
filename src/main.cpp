@@ -31,11 +31,23 @@ enum AppState {
     STATE_TRAINER_MENU,// Feature 1
     STATE_TIMER_MENU,  // Feature 3
     STATE_PRESETS_MENU, // New Submenu for Presets
-    STATE_PRESET_SELECT // Loading/Saving
+    STATE_PRESET_SELECT, // Loading/Saving
+    STATE_QUICK_MENU    // New Overlay Menu
 };
 
 AppState currentState = STATE_METRONOME;
-bool isVolumeFocus = false; // Toggle between BPM (false) and Volume (true) adjustment
+bool isVolumeFocus = false; // Used for Volume Overlay visibility
+
+// --- Quick Menu State ---
+int quickMenuSelection = 0; // 0=Metric, 1=Subdiv, 2=Preset
+bool quickMenuEditing = false;
+
+// --- Input Handling State ---
+bool isPushAndTurn = false;
+int pendingClicks = 0;
+unsigned long lastClickReleaseTime = 0;
+long encoderValAtPress = 0;
+#define DOUBLE_CLICK_GAP 250 // ms
 
 // --- Time Signatures --------------------------------------------------------
 struct TimeSig {
@@ -198,6 +210,7 @@ void drawTimeSigScreen();
 void drawBPMScreen(); 
 void drawTapScreen();
 void drawPresetScreen();
+void drawQuickMenuScreen();
 void enterDeepSleep();
 void saveSettings();
 void loadSettings();
@@ -849,6 +862,9 @@ void loop() {
         case STATE_PRESET_SELECT:
             drawPresetScreen();
             break;
+        case STATE_QUICK_MENU:
+            drawQuickMenuScreen();
+            break;
         case STATE_TUNER:
              if (isTunerToneOn) {
                  drawTunerScreen(a4Reference, "A4", 0);
@@ -1339,3 +1355,58 @@ void loadPreset(int slot) {
     encoder.setCount(metronome.bpm * 2);
     saveSettings();
 }
+
+void drawQuickMenuScreen() {
+    // Overlay Style
+    u8g2.setDrawColor(0);
+    u8g2.drawBox(10, 20, 108, 90);
+    u8g2.setDrawColor(1);
+    u8g2.drawFrame(10, 20, 108, 90);
+    u8g2.drawFrame(12, 22, 104, 86); // Double Frame
+    
+    u8g2.setFont(u8g2_font_profont12_mf);
+    u8g2.drawBox(30, 16, 68, 10); // Title BG
+    u8g2.setDrawColor(0);
+    u8g2.drawStr(36, 24, "QUICK MENU");
+    u8g2.setDrawColor(1);
+    
+    const char* items[] = {"Metric", "Subdiv", "Preset"};
+    int yStart = 45;
+    
+    for(int i=0; i<3; i++) {
+        int y = yStart + (i * 20);
+        
+        if (quickMenuSelection == i) {
+            u8g2.drawStr(20, y, ">");
+        }
+        
+        u8g2.drawStr(30, y, items[i]);
+        
+        // Value Draw
+        u8g2.setCursor(75, y);
+        if (i == 0) { // Metric
+            if (quickMenuEditing && quickMenuSelection == 0) {
+                 u8g2.print("["); u8g2.print(timeSignatures[metronome.timeSigIdx].label); u8g2.print("]");
+            } else {
+                 u8g2.print(timeSignatures[metronome.timeSigIdx].label);
+            }
+        } else if (i == 1) { // Subdiv
+            const char* slLabel = metronome.subLabels[metronome.subdivision];
+             if (quickMenuEditing && quickMenuSelection == 1) {
+                 u8g2.print("["); u8g2.print(slLabel); u8g2.print("]");
+            } else {
+                 u8g2.print(slLabel);
+            }
+        } else if (i == 2) { // Preset
+             if (quickMenuEditing && quickMenuSelection == 2) {
+                 u8g2.print("[#"); u8g2.print(presetSlot+1); u8g2.print("]");
+            } else {
+                 u8g2.print("#"); u8g2.print(presetSlot+1);
+            }
+        }
+    }
+    
+    u8g2.setFont(u8g2_font_tiny5_tf);
+    u8g2.drawStr(25, 105, "Click: Edit/Save");
+}
+

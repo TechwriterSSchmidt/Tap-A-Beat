@@ -3,12 +3,20 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 
 **Tap-A-Beat** is an ESP32 based digital metronome packed with features in a compact form factor. It is designed to be responsive, precise, and a joy to use.
 
+## Support my projects
+
+If you like this project, consider a tip. Your tip motivates me to continue developing useful stuff for the DIY community. Thank you very much for your support!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/D1D01HVT9A)
+
+
 ## Table of Contents
 - [Features](#features)
 - [Functional Overview](#functional-overview)
 - [Hardware Stack](#hardware-stack)
 - [Project Structure](#project-structure)
 - [User Interface Walkthrough](#user-interface-walkthrough)
+- [Quick Reference Guide (Simplified)](QUICK_REFERENCE_GUIDE.md)
 - [Release Notes (v1.3.0)](RELEASE_NOTES.md)
 
 ## Features
@@ -73,11 +81,12 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 
 since this project uses a 128x128 OLED, the interface is designed to be high-contrast and readable.
 
-**1. Main Controls**
+**1. Main Controls (Play Screen)**
+- **Turn Encoder:** Adjust BPM immediately.
 - **Short Click:** Toggle Play / Stop.
-- **Long Press (> 0.5s):** Toggle Volume Focus. (Turn encoder to adjust, Click to return to BPM).
-- **Very Long Press (> 2s):** Enter Main Menu.
-- **Encoder Turn:** Adjust BPM (or Volume if focused).
+- **Push & Turn (Hold and Twist):** Adjust Volume (Volume Overlay appears).
+- **Double Click:** Open **Quick Menu** (Time Sig, Subdivisions, Presets).
+- **Long Press (> 1s):** Enter **Main Menu** (Trainer, Tuner, Settings).
 
 **2. Feedback & Silent Mode**
 Tap-A-Beat supports multi-sensory feedback:
@@ -86,7 +95,7 @@ Tap-A-Beat supports multi-sensory feedback:
   - **Red:** Accent (Beat 1).
   - **Blue:** Sub-beats.
 - **Haptic (Vibration):** The device vibrates on every beat.
-- **Silent Mode:** Turn the Volume down to 0 using the **Volume Focus** (Long Press). The audio will mute, but the **LED** and **Vibration Motor** will continue to operate, allowing for discrete, silent tempo keeping.
+- **Silent Mode:** Turn the Volume down to 0 using **Push & Turn**. The audio will mute, but the **LED** and **Vibration Motor** will continue to operate, allowing for discrete, silent tempo keeping.
 
 **3. The Metronome Screen (Main View)**
 This is the default view. It shows the current BPM, Volume, and provides a visual beat indicator.
