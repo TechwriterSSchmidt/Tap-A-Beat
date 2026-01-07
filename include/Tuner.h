@@ -6,16 +6,20 @@
 
 #define MIC_SAMPLE_RATE 16000
 #define FFT_SAMPLES 1024 // Power of 2
-#define NOISE_THRESHOLD 1000 // Adjust based on mic sensitivity
+#define NOISE_THRESHOLD 1000 // FFT Threshold
+#define TAP_THRESHOLD 5000000 // Raw Amplitude Threshold (needs tuning depending on scaling)
 
 class Tuner {
 public:
     Tuner();
-    void begin();
-    void stop(); // Stop I2S to save power/conflict
+    void begin(); // Start I2S
+    void stop(); // Stop I2S
     
     // Returns frequency in Hz, or 0 if silent/noise
     float getFrequency();
+    
+    // Returns raw max amplitude (for tap detection)
+    int32_t getAmplitude(); 
     
     // Helper to get Note name and Cents deviation
     // returns string like "A4", fills cents (-50 to +50)

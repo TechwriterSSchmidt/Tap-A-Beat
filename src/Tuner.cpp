@@ -37,6 +37,24 @@ void Tuner::begin() {
     _initialized = true;
 }
 
+int32_t Tuner::getAmplitude() {
+    if (!_initialized) return 0;
+
+    size_t bytes_read;
+    // Read a smaller chunk for responsiveness
+    int samples_to_read = 256; 
+    int32_t buffer[samples_to_read];
+
+    i2s_read(I2S_NUM_1, (void*)buffer, samples_to_read * sizeof(int32_t), &bytes_read, 0); // Non-blocking/Immediate return if possible? using 0 wait
+
+    int32_t maxAmp = 0;
+    for (int i=0; i < samples_to_read; i++) {
+        int32_t val = abs(buffer[i] >> 8); // Remove some LSB noise / align 24bit
+        if (val > maxAmp) maxAmp = val;
+    }
+    return maxAmp;
+}
+
 void Tuner::stop() {
     if (_initialized) {
         i2s_driver_uninstall(I2S_NUM_1);
@@ -77,8 +95,8 @@ float Tuner::getFrequency() {
     // Perform FFT
     // Note: arduinoFFT v1.x API
     FFT = arduinoFFT(vReal, vImag, FFT_SAMPLES, MIC_SAMPLE_RATE);
-    FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_DIR_FORWARD);
-    FFT.Compute(FFT_DIR_FORWARD);
+    FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+    FFT.Compute(FFT_FORWARD);
     FFT.ComplexToMagnitude();
     
     double peak = FFT.MajorPeak(vReal, FFT_SAMPLES, MIC_SAMPLE_RATE);
