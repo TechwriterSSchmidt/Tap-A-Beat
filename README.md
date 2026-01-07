@@ -15,7 +15,7 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
   - **Tap Tempo:** Set BPM by tapping the enclosure (via built-in mic) or clapping.
   - **Encoder:** Debounced rotary control with "Press-and-Turn" volume shortcut.
 - **Tuner:** Full chromatic tuner with adjustable A4 reference (400–480Hz) and AGC (Automatic Gain Control) for stable detection.
-- **Persistence & Presets:** Automatically saves settings; **5 User Presets** for quick set-list changes.
+- **Persistence & Presets:** Automatically saves settings; **50 User Presets** for quick set-list changes.
 - **Power Management:** Deep sleep auto-off with wake-on-button.
 
 ## Functional Overview
@@ -27,7 +27,7 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 | **Taptronic** | Set tempo by tapping on the device casing (microphone detected). | **Menu** -> **Taptronic**.<br>Tap rhythmically to set BPM. Heart fills up on input. |
 | **Tuner** | Chromatic tuner with A4 reference adjustment (400-480Hz). | **Menu** -> **Tuner**.<br>Play note into mic. Encoder adjusts A4 ref. |
 | **Presets** | Save and Load up to 50 complete device configurations. | **Menu** -> **Presets**.<br>Choose **Load/Save** -> Select slot.<br>Displays BPM & Metric. |
-| **Time Signature** | Adjustable meter (1/4 to 12/4) with accent on Beat 1. | **Menu** -> **Metric**.<br>Turn to change signature. |
+| **Time Signature** | Select from list (e.g. 4/4, 3/4, 5/4, 7/8) with accent on Beat 1. | **Menu** -> **Metric**.<br>Turn to change signature. |
 | **Haptic Feedback** | Physical vibration pulse on every beat. | Always active. Distinct pulse for accents. |
 | **Deep Sleep** | Automatic power saving after inactivity. | **Wake**: Click button.<br>**Sleep**: Auto timeout. |
 
