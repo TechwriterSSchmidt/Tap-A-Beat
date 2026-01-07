@@ -668,13 +668,25 @@ void drawTapScreen() {
     // Normalized Threshold = (5 + (1-sens)*10) / 15
     float normThresh = (5.0f + (1.0f - tapSensitivity) * 10.0f) / 15.0f;
     
-    // Check if input exceeds threshold (Visual Trigger)
-    if (tapInputLevel > normThresh) {
-        // Draw Fill (Smaller Heart)
-        // Simple distinct triangle or circle to "fill" it
-        u8g2.drawDisc(cx - 15, cy - 5, 8); // Left lobe
-        u8g2.drawDisc(cx + 15, cy - 5, 8); // Right lobe
-        u8g2.drawTriangle(cx - 21, cy + 1, cx + 21, cy + 1, cx, cy + 22); // Bottom
+    // Level Dependent Filling (VU Meter Style)
+    // Scale input level to heart size. 
+    // Max scale ~ 2.0 fills the outline.
+    float scale = tapInputLevel * 2.5f; 
+    if (scale > 2.0f) scale = 2.0f;
+    
+    if (scale > 0.1f) {
+        int r = (int)(8 * scale);
+        int dX = (int)(15 * scale);
+        int dY_circles = (int)(5 * scale); 
+        int dY_tri_top = (int)(1 * scale);
+        int dY_tri_bot = (int)(22 * scale);
+        int dX_tri = (int)(21 * scale);
+        
+        u8g2.drawDisc(cx - dX, cy - dY_circles, r);
+        u8g2.drawDisc(cx + dX, cy - dY_circles, r);
+        u8g2.drawTriangle(cx - dX_tri, cy + dY_tri_top, 
+                          cx + dX_tri, cy + dY_tri_top, 
+                          cx, cy + dY_tri_bot);
     }
     
     char buf[32];
