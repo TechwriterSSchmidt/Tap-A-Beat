@@ -974,7 +974,7 @@ void drawMetronomeScreen() {
     } else {
         u8g2.drawCircle(cx, cy, 10);
         u8g2.setCursor(40, 115);
-        u8g2.print("Hold: Play");
+        u8g2.print("Click: Play");
     }
     
     // Volume Bar

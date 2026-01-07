@@ -102,16 +102,21 @@ This is the default view. It shows the current BPM, Volume, and provides a visua
 
 ![Metronome Screen](docs/mockups/screen_metronome.png)
 
-**2. The Main Menu**
-Accessible by clicking the encoder. Navigate by rotating, select by clicking.
+**4. The Quick Menu (Double Click)**
+Accessible by double-clicking the encoder. Allows fast changes to Metric, Subdivision, and Presets without stopping the flow.
+
+![Quick Menu](docs/mockups/screen_quick_menu.png)
+
+**5. The Main Menu**
+Accessible by holding the encoder. Navigate by rotating, select by clicking.
 
 ![Main Menu](docs/mockups/screen_menu.png)
 
-**3. Adjustment Sub-Screens**
+**6. Adjustment Sub-Screens**
 For setting precise values like BPM or Time Signature, the UI switches to a focused view.
 
 ![Set BPM Screen](docs/mockups/screen_set_bpm.png)
 
-**4. Tap Tempo (Heart Mode)**
+**7. Tap Tempo (Heart Mode)**
 Make the heart beat! Emphasize the first beat of a bar to automatically set the **Time Signature** (e.g. 3/4). The UI displays "ACC!" for recognized accents. The sensitivity threshold is represented by the heart's outline.
 ![Tap Tempo Screen](docs/mockups/screen_tap_tempo.png)
