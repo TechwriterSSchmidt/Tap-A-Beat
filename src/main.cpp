@@ -59,6 +59,25 @@ const TimeSig timeSignatures[] = {
 };
 const int NUM_TIME_SIGS = sizeof(timeSignatures) / sizeof(TimeSig);
 
+// --- Taptronic State --------------------------------------------------------
+struct TapEvent {
+    unsigned long time;
+    float peakLevel;
+    bool isAccent;
+};
+#define MAX_TAP_HISTORY 16
+TapEvent tapHistory[MAX_TAP_HISTORY];
+int tapHistoryHead = 0;
+int tapHistoryCount = 0;
+
+// Peak detection state
+bool tapIsPeakFinding = false;
+float tapCurrentPeak = 0.0f;
+unsigned long tapPeakStartTime = 0;
+// Double Threshold Logic
+float tapBeatThreshold = 5000000.0f;   // Calculated from sensitivity
+float tapAccentThreshold = 8000000.0f; // Calculated from sensitivity * 1.5 approx
+
 // --- Metronome Logic --------------------------------------------------------
 struct MetronomeState {
     volatile int bpm = 120;
@@ -181,6 +200,58 @@ void metronomeTask(void * parameter) {
     }
 }
 
+// --- Taptronic Logic --------------------------------------------------------
+void analyzeTapRhythm() {
+    if (tapHistoryCount < 3) return;
+
+    // Reset accents based on current threshold (if dynamic) or just use stored flags
+    // finding the indices of accents
+    int accentIndices[MAX_TAP_HISTORY];
+    int accentCount = 0;
+    
+    // Scan history backwards to find most recent pattern
+    // History is a ring buffer? No, simple array for this session is easier 
+    // but the code uses a ring buffer approach "tapHistoryHead".
+    // Let's implement correct ring buffer iteration.
+    
+    // Actually, for simplicity, let's just iterate the valid count up to MAX
+    // If we treat it as a linear buffer that resets on silence, it's easier. 
+    // (See loop logic: tapHistoryCount resets on timeout).
+    // So we can just iterate 0 to tapHistoryCount-1.
+    
+    for (int i = 0; i < tapHistoryCount; i++) {
+        if (tapHistory[i].isAccent) {
+            accentIndices[accentCount++] = i;
+        }
+    }
+    
+    if (accentCount < 2) return;
+    
+    // Calculate interval between last two accents
+    int lastIdx = accentIndices[accentCount - 1];
+    int prevIdx = accentIndices[accentCount - 2];
+    int interval = lastIdx - prevIdx; // e.g. Acc at 0, Acc at 4 -> Interval 4 (4/4)
+    
+    if (interval > 0 && interval <= 12) {
+        // Try to match specific time signatures preferred by user
+        // Priority: /4 over /8?
+        int bestMatch = -1;
+        
+        // Search in timeSignatures
+        for (int i = 0; i < NUM_TIME_SIGS; i++) {
+            if (timeSignatures[i].num == interval) {
+                bestMatch = i;
+                // If we find a x/4, prefer it?
+                if (timeSignatures[i].den == 4) break; 
+            }
+        }
+        
+        if (bestMatch != -1) {
+            metronome.timeSigIdx = bestMatch;
+        }
+    }
+}
+
 // --- Setup ------------------------------------------------------------------
 void setup() {
     Serial.begin(115200);
@@ -258,7 +329,7 @@ void setup() {
       0            
     );
 
-    Serial.println("Takt-O-Beat Ready.");
+    Serial.println("Takt-O-Beat v" APP_VERSION " Ready.");
 }
 
 // --- Main Loop --------------------------------------------------------------
@@ -447,28 +518,75 @@ void loop() {
     if (currentState == STATE_TAP_TEMPO) {
         float lvl = tuner.readLevel();
         tapInputLevel = (lvl / 15000000.0f); 
-        float threshold = 5000000.0f + (1.0f - tapSensitivity) * 10000000.0f;
         
-        if (lvl > threshold) {
-             if (now - lastTapTime > 150) { 
-                 lastActivityTime = now;
-                 if (now - lastTapTime > TAP_TIMEOUT) {
+        // Calculate Thresholds (Dynamic based on Sensitivity)
+        tapBeatThreshold = 5000000.0f + (1.0f - tapSensitivity) * 10000000.0f;
+        tapAccentThreshold = tapBeatThreshold * 1.5f; // Accent must be 50% louder
+        
+        if (!tapIsPeakFinding) {
+            if (lvl > tapBeatThreshold) {
+                 if (now - lastTapTime > 120) { // Debounce
+                     tapIsPeakFinding = true;
+                     tapCurrentPeak = lvl;
+                     tapPeakStartTime = now;
+                 }
+            }
+        } else {
+            // 1. Track Peak during window
+            if (lvl > tapCurrentPeak) tapCurrentPeak = lvl;
+            
+            // 2. End of Peak Window (50ms)
+            if (now - tapPeakStartTime > 50) {
+                tapIsPeakFinding = false;
+                lastActivityTime = now;
+                
+                // Analyze
+                bool isAccent = (tapCurrentPeak > tapAccentThreshold);
+
+                // Check Timeout (Reset if pause too long)
+                // Use tapPeakStartTime as the event time
+                if ((tapPeakStartTime - lastTapTime) > TAP_TIMEOUT) {
                      tapCount = 1;
                      tapIntervalAccumulator = 0;
-                 } else {
+                     tapHistoryCount = 0;
+                } else {
                      tapCount++;
-                     tapIntervalAccumulator += (now - lastTapTime);
-                     if (tapCount >= 2) {
-                          float avg = (float)tapIntervalAccumulator / (float)(tapCount - 1);
-                          int b = (int)(60000.0f / avg);
-                          if (b >= 30 && b <= 300) {
-                              metronome.bpm = b;
-                              encoder.setCount(metronome.bpm * 2);
-                          }
+                     unsigned long interval = tapPeakStartTime - lastTapTime;
+                     
+                     // Filter blips
+                     if (tapCount > 1) {
+                        tapIntervalAccumulator += interval;
+                     
+                        // BPM Update
+                        if (tapCount >= 2) {
+                            float avg = (float)tapIntervalAccumulator / (float)(tapCount - 1);
+                            if (avg > 100) { // Prevent div/0 or huge bpm
+                                int b = (int)(60000.0f / avg);
+                                if (b >= 30 && b <= 300) {
+                                    metronome.bpm = b;
+                                    encoder.setCount(metronome.bpm * 2);
+                                }
+                            }
+                        }
                      }
-                 }
-                 lastTapTime = now;
-             }
+                }
+                
+                // Store in History
+                if (tapHistoryCount < MAX_TAP_HISTORY) {
+                     TapEvent evt;
+                     evt.time = tapPeakStartTime;
+                     evt.peakLevel = tapCurrentPeak;
+                     evt.isAccent = isAccent;
+                     tapHistory[tapHistoryCount] = evt;
+                     tapHistoryCount++;
+                }
+
+                // Call Pattern Recognition
+                analyzeTapRhythm();
+
+                // Update timestamp
+                lastTapTime = tapPeakStartTime;
+            }
         }
     }
 
@@ -764,18 +882,12 @@ void drawTapScreen() {
     int cy = 60;
     
     // Heart Outline (Threshold Indicator)
-    // Draw using lines as before but this represents the threshold
     u8g2.drawLine(cx, cy + 30, cx - 30, cy - 10);
     u8g2.drawLine(cx - 30, cy - 10, cx - 15, cy - 25);
     u8g2.drawLine(cx - 15, cy - 25, cx, cy - 10);
     u8g2.drawLine(cx, cy + 30, cx + 30, cy - 10);
     u8g2.drawLine(cx + 30, cy - 10, cx + 15, cy - 25);
     u8g2.drawLine(cx + 15, cy - 25, cx, cy - 10);
-    
-    // Calculate Threshold Normalized
-    // Threshold formula from loop: 5M + (1-sens)*10M. Input Normalized: lvl/15M.
-    // Normalized Threshold = (5 + (1-sens)*10) / 15
-    float normThresh = (5.0f + (1.0f - tapSensitivity) * 10.0f) / 15.0f;
     
     // Level Dependent Filling (VU Meter Style)
     // Scale input level to heart size. 
@@ -800,13 +912,28 @@ void drawTapScreen() {
     
     char buf[32];
     sprintf(buf, "Sens: %d%%", (int)(tapSensitivity * 100));
-    u8g2.drawStr(10, 120, buf);
+    u8g2.drawStr(5, 120, buf);
 
     if (tapCount > 1) {
         sprintf(buf, "BPM: %d", metronome.bpm);
-        u8g2.drawStr(70, 120, buf);
+        u8g2.drawStr(65, 120, buf);
     } else {
-         u8g2.drawStr(70, 120, "TAP NOW!");
+         u8g2.drawStr(65, 120, "TAP NOW!");
+    }
+    
+    // Display Detected Metric and Accent Status
+    u8g2.setCursor(95, 30);
+    u8g2.print(timeSignatures[metronome.timeSigIdx].label);
+    
+    if (tapHistoryCount > 0) {
+        if (millis() - tapHistory[tapHistoryCount-1].time < 400) {
+            u8g2.setCursor(95, 45);
+            if (tapHistory[tapHistoryCount-1].isAccent) {
+                u8g2.print("ACC!");
+            } else {
+                u8g2.print("Tap");
+            }
+        }
     }
 }
 

@@ -3,6 +3,14 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 
 **Tap-A-Beat** is an ESP32 based digital metronome packed with features in a compact form factor. It is designed to be responsive, precise, and a joy to use.
 
+## Table of Contents
+- [Features](#features)
+- [Functional Overview](#functional-overview)
+- [Hardware Stack](#hardware-stack)
+- [Project Structure](#project-structure)
+- [User Interface Walkthrough](#user-interface-walkthrough)
+- [Release Notes (v1.2.0)](RELEASE_NOTES.md)
+
 ## Features
 
 - **Precise Timing:** Drifts are negligible thanks to a dedicated FreeRTOS Audio Task running on the ESP32's Core 0, decoupled from UI logic.
@@ -13,6 +21,7 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 - **Haptic Feedback:** Integrated PWM haptic engine for silent practice with distinct accent pulses.
 - **Smart Inputs:** 
   - **Tap Tempo:** Set BPM by tapping the enclosure (via built-in mic) or clapping.
+  - **Smart Taptronic:** Detects BPM and Time Signature (Metric) by analyzing tap dynamics (accents).
   - **Encoder:** Debounced rotary control with "Press-and-Turn" volume shortcut.
 - **Tuner:** Full chromatic tuner with adjustable A4 reference (400–480Hz) and AGC (Automatic Gain Control) for stable detection.
 - **Persistence & Presets:** Automatically saves settings; **50 User Presets** for quick set-list changes.
@@ -24,7 +33,7 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 | :--- | :--- | :--- |
 | **Metronome** | High-precision timing (30-300 BPM) with woodblock sound. | **Turn Encoder**: Adjust BPM.<br>**Short Click**: Play / Stop. |
 | **Volume & Silent Mode** | Adjustable audio volume. At level 0, device operates in purely visual/haptic mode. | **Long Press (>0.5s)**: Enter Volume Focus.<br>**Turn**: Adjust.<br>**Click**: Return to BPM. |
-| **Taptronic** | Set tempo by tapping on the device casing (microphone detected). | **Menu** -> **Taptronic**.<br>Tap rhythmically to set BPM. Heart fills up on input. |
+| **Taptronic** | Detects BPM and Metric (e.g. 3/4) by analyzing accents in your tapping. | **Menu** -> **Taptronic**.<br>Tap rhythmically (emphasize "One"). Dynamic threshold adapts to user. |
 | **Tuner** | Chromatic tuner with A4 reference adjustment (400-480Hz). | **Menu** -> **Tuner**.<br>Play note into mic. Encoder adjusts A4 ref. |
 | **Presets** | Save and Load up to 50 complete device configurations. | **Menu** -> **Presets**.<br>Choose **Load/Save** -> Select slot.<br>Displays BPM & Metric. |
 | **Time Signature** | Select from list (e.g. 4/4, 3/4, 5/4, 7/8) with accent on Beat 1. | **Menu** -> **Metric**.<br>Turn to change signature. |
@@ -89,5 +98,5 @@ For setting precise values like BPM or Time Signature, the UI switches to a focu
 ![Set BPM Screen](docs/mockups/screen_set_bpm.png)
 
 **4. Tap Tempo (Heart Mode)**
-Make the heart beat! The sensitivity threshold is represented by the heart's outline.
+Make the heart beat! Emphasize the first beat of a bar to automatically set the **Time Signature** (e.g. 3/4). The UI displays "ACC!" for recognized accents. The sensitivity threshold is represented by the heart's outline.
 ![Tap Tempo Screen](docs/mockups/screen_tap_tempo.png)
