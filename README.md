@@ -43,9 +43,24 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 
 ## User Interface Walkthrough
 
-Since this project uses a 128x128 OLED, the interface is designed to be high-contrast and readable.
+since this project uses a 128x128 OLED, the interface is designed to be high-contrast and readable.
 
-**1. The Metronome Screen (Main View)**
+**1. Main Controls**
+- **Short Click:** Toggle Play / Stop.
+- **Long Press (> 0.5s):** Toggle Volume Focus. (Turn encoder to adjust, Click to return to BPM).
+- **Very Long Press (> 2s):** Enter Main Menu.
+- **Encoder Turn:** Adjust BPM (or Volume if focused).
+
+**2. Feedback & Silent Mode**
+Tap-A-Beat supports multi-sensory feedback:
+- **Audio:** High-fidelity woodblock sample.
+- **Visual (WS2812 LED):** The Top-Mounted LED flashes in sync with the beat.
+  - **Red:** Accent (Beat 1).
+  - **Blue:** Sub-beats.
+- **Haptic (Vibration):** The device vibrates on every beat.
+- **Silent Mode:** Turn the Volume down to 0 using the **Volume Focus** (Long Press). The audio will mute, but the **LED** and **Vibration Motor** will continue to operate, allowing for discrete, silent tempo keeping.
+
+**3. The Metronome Screen (Main View)**
 This is the default view. It shows the current BPM, Volume, and provides a visual beat indicator.
 
 ![Metronome Screen](docs/mockups/screen_metronome.png)
