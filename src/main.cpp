@@ -51,7 +51,7 @@ TaskHandle_t metronomeTaskHandle = NULL;
 
 // --- Menu Logic -------------------------------------------------------------
 // Removed "Speed (BPM)" because it's editable in Home view
-const char* menuItems[] = {"Metric", "Tap Tempo", "Tuner", "Load Preset", "Save Preset", "Exit"};
+const char* menuItems[] = {"Metric", "Taptronic", "Tuner", "Load Preset", "Save Preset", "Exit"};
 int menuSelection = 0;
 int menuCount = 6;
 
@@ -254,11 +254,9 @@ void loop() {
                 if (duration < 500) { // Short Click
                     // Single Press Handling
                     if (currentState == STATE_METRONOME) {
-                        // Toggle Focus between BPM and Volume
-                        isVolumeFocus = !isVolumeFocus;
-                        // Reset encoder helper
-                        lastEncoderValue = newEncVal; 
-                        encoder.setCount(lastEncoderValue * 2);
+                        // Toggle Play/Stop
+                        metronome.isPlaying = !metronome.isPlaying;
+                        if (metronome.isPlaying) metronome.beatCounter = 0;
                         saveSettings();
                     } else if (currentState == STATE_MENU) {
                         if (menuSelection == 0) { // Metric
@@ -313,10 +311,12 @@ void loop() {
                             currentState = STATE_MENU;
                             isVolumeFocus = false;
                         } else {
-                            // Medium Press (0.5 - 2s) -> Toggle Play/Stop
-                             metronome.isPlaying = !metronome.isPlaying;
-                             if (metronome.isPlaying) metronome.beatCounter = 0;
-                             saveSettings();
+                            // Medium Press (0.5 - 2s) -> Toggle Volume Focus
+                            isVolumeFocus = !isVolumeFocus;
+                            // Reset encoder for smooth transition
+                            lastEncoderValue = newEncVal; 
+                            encoder.setCount(lastEncoderValue * 2);
+                            saveSettings();
                         }
                     } else {
                         // Exit back to Metronome
@@ -648,13 +648,14 @@ void drawBPMScreen() {
 
 void drawTapScreen() {
     u8g2.setFont(u8g2_font_profont12_mf);
-    u8g2.drawStr(30, 12, "TAP TEMPO");
+    u8g2.drawStr(30, 12, "TAPTRONIC");
     u8g2.drawLine(0, 14, 128, 14);
     
     int cx = 64;
     int cy = 60;
     
-    // Simple Heart with Lines
+    // Heart Outline (Threshold Indicator)
+    // Draw using lines as before but this represents the threshold
     u8g2.drawLine(cx, cy + 30, cx - 30, cy - 10);
     u8g2.drawLine(cx - 30, cy - 10, cx - 15, cy - 25);
     u8g2.drawLine(cx - 15, cy - 25, cx, cy - 10);
@@ -662,11 +663,18 @@ void drawTapScreen() {
     u8g2.drawLine(cx + 30, cy - 10, cx + 15, cy - 25);
     u8g2.drawLine(cx + 15, cy - 25, cx, cy - 10);
     
-    // Fill from level
-    int level = (int)(tapInputLevel * 30);
-    if (level > 30) level = 30;
-    if (level > 0) {
-        u8g2.drawTriangle(cx, cy+30, cx - level/2, cy+30-level, cx + level/2, cy+30-level);
+    // Calculate Threshold Normalized
+    // Threshold formula from loop: 5M + (1-sens)*10M. Input Normalized: lvl/15M.
+    // Normalized Threshold = (5 + (1-sens)*10) / 15
+    float normThresh = (5.0f + (1.0f - tapSensitivity) * 10.0f) / 15.0f;
+    
+    // Check if input exceeds threshold (Visual Trigger)
+    if (tapInputLevel > normThresh) {
+        // Draw Fill (Smaller Heart)
+        // Simple distinct triangle or circle to "fill" it
+        u8g2.drawDisc(cx - 15, cy - 5, 8); // Left lobe
+        u8g2.drawDisc(cx + 15, cy - 5, 8); // Right lobe
+        u8g2.drawTriangle(cx - 21, cy + 1, cx + 21, cy + 1, cx, cy + 22); // Bottom
     }
     
     char buf[32];
