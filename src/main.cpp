@@ -67,7 +67,7 @@ enum PresetMode {
 };
 int presetSlot = 0; // 0 to NUM_PRESETS-1
 PresetMode presetMode = PRESET_LOAD;
-#define NUM_PRESETS 5
+#define NUM_PRESETS 50
 
 // --- Encoder / Input State --------------------------------------------------
 long lastEncoderValue = 0;
@@ -782,10 +782,54 @@ void drawPresetScreen() {
     const char* title = (presetMode == PRESET_LOAD) ? "Load Preset" : "Save Preset";
     u8g2.drawStr(0, 10, title);
     u8g2.drawLine(0, 12, 128, 12);
+    
+    // Slot Number
     char buf[24];
-    sprintf(buf, "Slot: %d", presetSlot + 1);
-    u8g2.drawStr(40, 40, buf);
-    u8g2.drawStr(10, 80, "Click to Confirm");
+    sprintf(buf, "Slot %d / %d", presetSlot + 1, NUM_PRESETS);
+    // Center it roughly
+    int w = u8g2.getStrWidth(buf);
+    u8g2.drawStr((128 - w)/2, 35, buf);
+    
+    // Preview Info
+    char key[16];
+    sprintf(key, "p%d_bpm", presetSlot);
+    
+    // Check if preset exists
+    if (!prefs.isKey(key) && presetMode == PRESET_LOAD) {
+        // Empty
+        u8g2.setFont(u8g2_font_logisoso24_tn); // Or just big text
+        u8g2.setFont(u8g2_font_profont12_mf);
+        u8g2.drawStr(40, 70, "(Empty)");
+    } else {
+        // Read values (or what WILL be overwritten)
+        int pBpm, pTs;
+        if (presetMode == PRESET_SAVE && !prefs.isKey(key)) {
+             // Saving to new slot -> Show nothing or "(New)"?
+             // Actually, show what we are about to save? No, that's current state.
+             // User wants to identify the SLOT.
+             u8g2.drawStr(45, 65, "(Empty)");
+        } else {
+             // Existing data
+             pBpm = prefs.getInt(key, 120);
+             char keyTs[16]; sprintf(keyTs, "p%d_ts", presetSlot);
+             pTs = prefs.getInt(keyTs, 4);
+             
+             // Display Logic: "4/4 @ 120"
+             u8g2.setFont(u8g2_font_logisoso24_tn);
+             char infoBuf[16];
+             sprintf(infoBuf, "%d", pBpm);
+             u8g2.drawStr(10, 80, infoBuf);
+             
+             u8g2.setFont(u8g2_font_profont12_mf);
+             u8g2.drawStr(70, 70, "BPM");
+             
+             sprintf(infoBuf, "%d/4", pTs);
+             u8g2.drawStr(70, 85, infoBuf);
+        }
+    }
+
+    u8g2.setFont(u8g2_font_tiny5_tf);
+    u8g2.drawStr(10, 110, "Turn:Select Click:Do");
 }
 
 void enterDeepSleep() {
