@@ -105,6 +105,7 @@ unsigned long lastActivityTime = 0;
 // --- Forward Declarations ---------------------------------------------------
 void drawMetronomeScreen();
 void drawMenuScreen();
+void drawPresetsMenuScreen(); // New
 void drawTunerScreen(float freq, String note, int cents);
 void drawTimeSigScreen();
 void drawBPMScreen(); 
@@ -275,14 +276,21 @@ void loop() {
                         } else if (menuSelection == 2) { // Tuner
                              currentState = STATE_TUNER;
                              tuner.begin(); 
-                        } else if (menuSelection == 3) { // Load
+                        } else if (menuSelection == 3) { // Presets Menu
+                             currentState = STATE_PRESETS_MENU;
+                             presetsMenuSelection = 0;
+                        } else if (menuSelection == 4) { // Exit
+                             currentState = STATE_METRONOME;
+                        }
+                    } else if (currentState == STATE_PRESETS_MENU) {
+                        if (presetsMenuSelection == 0) { // Load
                              currentState = STATE_PRESET_SELECT;
                              presetMode = PRESET_LOAD;
-                        } else if (menuSelection == 4) { // Save
+                        } else if (presetsMenuSelection == 1) { // Save
                              currentState = STATE_PRESET_SELECT;
                              presetMode = PRESET_SAVE;
-                        } else if (menuSelection == 5) { // Exit
-                             currentState = STATE_METRONOME;
+                        } else { // Back
+                             currentState = STATE_MENU;
                         }
                     } else if (currentState == STATE_TUNER) {
                         isTunerToneOn = !isTunerToneOn;
@@ -374,6 +382,10 @@ void loop() {
             menuSelection += delta;
             if (menuSelection < 0) menuSelection = 0;
             if (menuSelection >= menuCount) menuSelection = menuCount - 1;
+        } else if (currentState == STATE_PRESETS_MENU) {
+            presetsMenuSelection += delta;
+            if (presetsMenuSelection < 0) presetsMenuSelection = 0;
+            if (presetsMenuSelection >= presetsMenuCount) presetsMenuSelection = presetsMenuCount - 1;
         } else if (currentState == STATE_AM_TIME_SIG) {
             metronome.beatsPerBar += delta;
             if (metronome.beatsPerBar < 1) metronome.beatsPerBar = 1;
@@ -438,6 +450,9 @@ void loop() {
             break;
         case STATE_MENU:
             drawMenuScreen();
+            break;
+        case STATE_PRESETS_MENU:
+            drawPresetsMenuScreen();
             break;
         case STATE_AM_TIME_SIG:
             drawTimeSigScreen();
@@ -593,6 +608,29 @@ void drawMenuScreen() {
         } else {
              u8g2.print(menuItems[i]);
         }
+    }
+    u8g2.setDrawColor(1);
+}
+
+void drawPresetsMenuScreen() {
+    u8g2.setFont(u8g2_font_profont12_mf);
+    u8g2.drawStr(0, 10, "- PRESETS -");
+    u8g2.drawLine(0, 12, 128, 12);
+    
+    int startY = 30;
+    int h = 18;
+    
+    for (int i = 0; i < presetsMenuCount; i++) {
+        if (i == presetsMenuSelection) {
+            u8g2.drawBox(10, startY + i*h - 10, 108, 14);
+            u8g2.setDrawColor(0);
+        } else {
+            u8g2.setDrawColor(1);
+        }
+        
+        int w = u8g2.getStrWidth(presetsMenuItems[i]);
+        u8g2.setCursor((128 - w) / 2, startY + i*h);
+        u8g2.print(presetsMenuItems[i]);
     }
     u8g2.setDrawColor(1);
 }
