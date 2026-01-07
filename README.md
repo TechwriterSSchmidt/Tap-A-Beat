@@ -119,4 +119,5 @@ For setting precise values like BPM or Time Signature, the UI switches to a focu
 
 **7. Tap Tempo (Heart Mode)**
 Make the heart beat! Emphasize the first beat of a bar to automatically set the **Time Signature** (e.g. 3/4). The UI displays "ACC!" for recognized accents. The sensitivity threshold is represented by the heart's outline.
+
 ![Tap Tempo Screen](docs/mockups/screen_tap_tempo.png)
