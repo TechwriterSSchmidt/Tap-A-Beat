@@ -18,6 +18,19 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 - **Persistence & Presets:** Automatically saves settings; **5 User Presets** for quick set-list changes.
 - **Power Management:** Deep sleep auto-off with wake-on-button.
 
+## Functional Overview
+
+| Feature | Description | Interaction / Control |
+| :--- | :--- | :--- |
+| **Metronome** | High-precision timing (30-300 BPM) with woodblock sound. | **Turn Encoder**: Adjust BPM.<br>**Short Click**: Play / Stop. |
+| **Volume & Silent Mode** | Adjustable audio volume. At level 0, device operates in purely visual/haptic mode. | **Long Press (>0.5s)**: Enter Volume Focus.<br>**Turn**: Adjust.<br>**Click**: Return to BPM. |
+| **Taptronic** | Set tempo by tapping on the device casing (microphone detected). | **Menu** -> **Taptronic**.<br>Tap rhythmically to set BPM. Heart fills up on input. |
+| **Tuner** | Chromatic tuner with A4 reference adjustment (400-480Hz). | **Menu** -> **Tuner**.<br>Play note into mic. Encoder adjusts A4 ref. |
+| **Presets** | Save and Load up to 5 complete device configurations. | **Menu** -> **Save/Load Preset**.<br>Select slot 1-5. |
+| **Time Signature** | Adjustable meter (1/4 to 12/4) with accent on Beat 1. | **Menu** -> **Metric**.<br>Turn to change signature. |
+| **Haptic Feedback** | Physical vibration pulse on every beat. | Always active. Distinct pulse for accents. |
+| **Deep Sleep** | Automatic power saving after inactivity. | **Wake**: Click button.<br>**Sleep**: Auto timeout. |
+
 ## Hardware Stack
 
 | Component | GPIO | Purpose |
