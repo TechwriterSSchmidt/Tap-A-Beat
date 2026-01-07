@@ -19,8 +19,10 @@
 ## Special Functions
 
 ### Volume & Silent Mode
-*   Turn volume all the way down to 0 to enter **Silent Mode**.
-*   In Silent Mode, only the LED and Vibration (Haptic) work.
+*   **Push & Turn** the knob to change volume.
+*   **Silent Mode (Vib+LED)**: Turn volume to **0**.
+*   **LED-Only Mode**: Turn volume **past 0** (left). Vibration stops, only LED flashes.
+*   Turn **Right** to re-enable Vibration and Sound.
 
 ### Saving a Preset
 1.  Go to **Menu -> Presets -> Save**.

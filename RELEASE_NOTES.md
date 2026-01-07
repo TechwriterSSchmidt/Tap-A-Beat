@@ -1,5 +1,19 @@
 # Release Notes
 
+## v1.3.1
+**"The Usability & Silent Mode Update"**
+
+### New Features
+*   **Enhanced Silent Mode:**
+    *   **Vib+LED**: At Volume 0.
+    *   **LED Only**: Turn left past 0 to mute vibration for complete silence.
+*   **Quick Menu:** Double-click to instantly change Meter, Subdivisions, or Presets.
+*   **Fast Volume:** "Push & Turn" to change volume without menus.
+
+### Improvements
+*   **Quick Reference Guide:** Added a one-page summary of all controls.
+*   **Response Times:** Input handling rewritten for delayed clicks (Double Click) and immediate turns.
+
 ## v1.3.0
 **"The Practice Suite Update"**
 

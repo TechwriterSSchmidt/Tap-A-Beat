@@ -46,7 +46,7 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 | **Tempo Trainer** | Auto-increment BPM. Configurable Start/End/Step/Interval. | **Menu** -> **Trainer**.<br>Edit settings & Toggle Start. |
 | **Subdivisions** | Adds clicks between beats (1/8, 1/3, 1/16). | **Menu** -> **Subdiv**.<br>Select pattern. |
 | **Practice Timer** | Countdown timer (1-60m). | **Menu** -> **Timer**.<br>Set minutes -> Start. |
-| **Volume & Silent Mode** | Adjustable audio volume. At level 0, device operates in purely visual/haptic mode. | **Long Press (>0.5s)**: Enter Volume Focus.<br>**Turn**: Adjust.<br>**Click**: Return to BPM. |
+| **Volume & Silent Mode** | Adjustable volume. **0**: Silent (Vib+LED). **<0**: Silent (LED Only). | **Push & Turn**: Adjust.<br>**Turn Left at 0**: Disable Vib.<br>**Turn Right**: Enable Vib/Audio. |
 | **Taptronic** | Detects BPM and Metric (e.g. 3/4) by analyzing accents in your tapping. | **Menu** -> **Taptronic**.<br>Tap rhythmically (emphasize "One"). Dynamic threshold adapts to user. |
 | **Tuner** | Chromatic tuner with A4 reference adjustment (400-480Hz). | **Menu** -> **Tuner**.<br>Play note into mic. Encoder adjusts A4 ref. |
 | **Presets** | Save and Load up to 50 complete device configurations. | **Menu** -> **Presets**.<br>Choose **Load/Save** -> Select slot.<br>Displays BPM & Metric. |

@@ -947,10 +947,10 @@ void drawMetronomeScreen() {
              if (hapticEnabled) {
                  // "VIB" or similar
                  u8g2.setFont(u8g2_font_profont12_mf);
-                 u8g2.drawStr(30, 80, "MUTE (VIB)");
+                 u8g2.drawStr(36, 75, "Vib+LED");
              } else {
-                 u8g2.setFont(u8g2_font_profont12_mf);
-                 u8g2.drawStr(30, 80, "MUTE (LED)");
+                 u8g2.setFont(u8g2_font_logisoso32_tf); 
+                 u8g2.drawStr(35, 80, "LED");
              }
         } else {
             u8g2.setFont(u8g2_font_logisoso24_tn);
