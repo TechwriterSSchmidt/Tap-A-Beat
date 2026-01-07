@@ -1,5 +1,18 @@
 # Release Notes
 
+## v1.3.0
+**"The Practice Suite Update"**
+
+### New Features
+*   **Tempo Trainer:** A smart practice tool that automatically increases BPM over time. Configurable Start BPM, End BPM, Step Size (e.g. +2 BPM), and Interval (e.g. every 8 Bars).
+*   **Subdivisions:** Practice typical rhythmic patterns with synthesized subdivision clicks (1/8 notes, Triplet 1/3, 1/16 notes).
+*   **Practice Timer:** A simple countdown timer (1-60 mins) to track your sessions. Ideal for Pomodoro-style practice.
+*   **Setlists:** Organize your 50 presets into 5 distinct Setlists. Use "Long Press" on the Save Screen to assign a preset to a specific Setlist for better gig management.
+
+### Improvements
+*   **Audio Engine:** Completely rewritten synthesis logic to support three distinct click types: Accents (High/Loud), Downbeats (Mid), and Subdivisions (Short/Sharp).
+*   **UI Updates:** Simplified "Menu" structure to house the new tools.
+
 ## v1.2.0 (2026-01-07)
 **"The Jazz & Rhythm Update"**
 

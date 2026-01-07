@@ -12,7 +12,7 @@
 // --- Audio Configuration ----------------------------------------------------
 #define SAMPLE_RATE     44100
 #define NUM_PRESETS     50
-#define APP_VERSION     "1.2.0"
+#define APP_VERSION     "1.3.0"
 #define AUDIO_TASK_CORE 0
 #define AUDIO_TASK_PRIO 2     // Higher than Loop (1)
 

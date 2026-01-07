@@ -117,6 +117,9 @@ int trainerEndBPM = 120;
 int trainerStepBPM = 5;
 int trainerBarInterval = 4; // Increase every 4 bars
 int trainerBarCounter = 0;
+// Trainer Menu UI
+int trainerMenuSelection = 0;
+bool trainerEditing = false; // Toggle between Nav (false) and Value Edit (true)
 
 // Timer State
 bool timerActive = false;
@@ -504,9 +507,14 @@ void loop() {
                     } else if (currentState == STATE_AM_SUBDIV) {
                          currentState = STATE_MENU;
                     } else if (currentState == STATE_TRAINER_MENU) {
-                         // Toggle Active
-                         trainerActive = !trainerActive;
-                         currentState = STATE_MENU; // Exit after toggle
+                         if (trainerMenuSelection == 4) { // Start/Stop
+                             trainerActive = !trainerActive;
+                             // Reset counter if starting
+                             if (trainerActive) trainerBarCounter = 0;
+                         } else {
+                             // Toggle Edit Checkbox style
+                             trainerEditing = !trainerEditing;
+                         }
                     } else if (currentState == STATE_TIMER_MENU) {
                          timerActive = !timerActive;
                          if (timerActive) timerStartTime = millis();
@@ -628,8 +636,30 @@ void loop() {
             if (metronome.subdivision < 0) metronome.subdivision = 0;
             if (metronome.subdivision > 3) metronome.subdivision = 3;
         } else if (currentState == STATE_TRAINER_MENU) {
-            // Adjust End BPM as example config
-            trainerEndBPM += delta;
+            if (!trainerEditing) {
+                trainerMenuSelection += delta;
+                if (trainerMenuSelection < 0) trainerMenuSelection = 0;
+                if (trainerMenuSelection > 4) trainerMenuSelection = 4;
+            } else {
+                // Editing Values
+                if (trainerMenuSelection == 0) { // Start BPM
+                    trainerStartBPM += delta;
+                    if (trainerStartBPM < 30) trainerStartBPM = 30;
+                    if (trainerStartBPM > 300) trainerStartBPM = 300;
+                } else if (trainerMenuSelection == 1) { // End BPM
+                    trainerEndBPM += delta;
+                    if (trainerEndBPM < 30) trainerEndBPM = 30;
+                    if (trainerEndBPM > 300) trainerEndBPM = 300;
+                } else if (trainerMenuSelection == 2) { // Step
+                    trainerStepBPM += delta;
+                    if (trainerStepBPM < 1) trainerStepBPM = 1;
+                    if (trainerStepBPM > 20) trainerStepBPM = 20;
+                } else if (trainerMenuSelection == 3) { // Interval
+                    trainerBarInterval += delta;
+                    if (trainerBarInterval < 1) trainerBarInterval = 1;
+                    if (trainerBarInterval > 100) trainerBarInterval = 100;
+                }
+            }
         } else if (currentState == STATE_TIMER_MENU) {
              // Adjust minutes
              int mins = timerDuration / 60000;
@@ -769,14 +799,34 @@ void loop() {
             break;
         case STATE_TRAINER_MENU:
             u8g2.setFont(u8g2_font_profont12_mf);
-            u8g2.drawStr(0, 12, "-- TEMPO TRAINER --");
+            u8g2.drawStr(0, 12, "-- TRAINER CFG --");
             {
-                char buf[32];
-                sprintf(buf, "Active: %s", trainerActive ? "ON" : "OFF");
-                u8g2.drawStr(10, 40, buf);
-                sprintf(buf, "End BPM: %d", trainerEndBPM);
-                u8g2.drawStr(10, 60, buf);
-                u8g2.drawStr(10, 90, "Click to Toggle");
+                const char* labels[] = {"Start", "End  ", "Step ", "Bars ", ""};
+                for(int i=0; i<5; i++) {
+                    int y = 35 + (i * 18);
+                    if(trainerMenuSelection == i) u8g2.drawStr(0, y, ">");
+                    
+                    if(i==4) {
+                         u8g2.setCursor(12, y);
+                         u8g2.print(trainerActive ? "STOP TRAINER" : "START TRAINER");
+                    } else {
+                        u8g2.setCursor(12, y);
+                        u8g2.print(labels[i]);
+                        u8g2.setCursor(60, y);
+                        
+                        int val = 0;
+                        if(i==0) val = trainerStartBPM;
+                        else if(i==1) val = trainerEndBPM;
+                        else if(i==2) val = trainerStepBPM;
+                        else if(i==3) val = trainerBarInterval;
+                        
+                        if(trainerEditing && trainerMenuSelection == i) {
+                            u8g2.print("["); u8g2.print(val); u8g2.print("]");
+                        } else {
+                            u8g2.print(val);
+                        }
+                    }
+                }
             }
             break;
         case STATE_TIMER_MENU:

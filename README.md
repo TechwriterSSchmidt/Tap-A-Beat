@@ -9,12 +9,15 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 - [Hardware Stack](#hardware-stack)
 - [Project Structure](#project-structure)
 - [User Interface Walkthrough](#user-interface-walkthrough)
-- [Release Notes (v1.2.0)](RELEASE_NOTES.md)
+- [Release Notes (v1.3.0)](RELEASE_NOTES.md)
 
 ## Features
 
 - **Precise Timing:** Drifts are negligible thanks to a dedicated FreeRTOS Audio Task running on the ESP32's Core 0, decoupled from UI logic.
-- **Natural Sound:** Synthesized "Woodblock" click sound for a pleasant, organic practicing experience.
+- **Natural Sound:** Synthesized "Woodblock" click sound for a pleasant, organic practicing experience with added **Subdivisions** support (8th, 16th, triplets).
+- **Practice Tools:**
+  - **Tempo Trainer:** Automatically increases speed over time to help you break through speed plateaus.
+  - **Practice Timer:** Built-in countdown timer for practice sessions.
 - **Visual Feedback:** 
   - **OLED:** Large, easy-to-read beat counter with accent framing.
   - **LED:** WS2812/NeoPixel support (Red=Accent, Blue=Beat).
@@ -24,7 +27,7 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
   - **Smart Taptronic:** Detects BPM and Time Signature (Metric) by analyzing tap dynamics (accents).
   - **Encoder:** Debounced rotary control with "Press-and-Turn" volume shortcut.
 - **Tuner:** Full chromatic tuner with adjustable A4 reference (400–480Hz) and AGC (Automatic Gain Control) for stable detection.
-- **Persistence & Presets:** Automatically saves settings; **50 User Presets** for quick set-list changes.
+- **Persistence & Presets:** Automatically saves settings; **50 User Presets** organized into **5 Setlists**.
 - **Power Management:** Deep sleep auto-off with wake-on-button.
 
 ## Functional Overview
@@ -32,6 +35,9 @@ A tactilely satisfying, and highly precise digital metronome and multi-tool for 
 | Feature | Description | Interaction / Control |
 | :--- | :--- | :--- |
 | **Metronome** | High-precision timing (30-300 BPM) with woodblock sound. | **Turn Encoder**: Adjust BPM.<br>**Short Click**: Play / Stop. |
+| **Tempo Trainer** | Auto-increment BPM. Configurable Start/End/Step/Interval. | **Menu** -> **Trainer**.<br>Edit settings & Toggle Start. |
+| **Subdivisions** | Adds clicks between beats (1/8, 1/3, 1/16). | **Menu** -> **Subdiv**.<br>Select pattern. |
+| **Practice Timer** | Countdown timer (1-60m). | **Menu** -> **Timer**.<br>Set minutes -> Start. |
 | **Volume & Silent Mode** | Adjustable audio volume. At level 0, device operates in purely visual/haptic mode. | **Long Press (>0.5s)**: Enter Volume Focus.<br>**Turn**: Adjust.<br>**Click**: Return to BPM. |
 | **Taptronic** | Detects BPM and Metric (e.g. 3/4) by analyzing accents in your tapping. | **Menu** -> **Taptronic**.<br>Tap rhythmically (emphasize "One"). Dynamic threshold adapts to user. |
 | **Tuner** | Chromatic tuner with A4 reference adjustment (400-480Hz). | **Menu** -> **Tuner**.<br>Play note into mic. Encoder adjusts A4 ref. |
