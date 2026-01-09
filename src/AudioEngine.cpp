@@ -91,7 +91,10 @@ void AudioEngine::playClick(bool isAccent, bool isSubdivision) {
         // We will just call it. But wait, main.cpp treats !accent as 'Blue' LED.
         // We might want a different LED for Sub?
         // For now, let's treat Subdivision as non-accent.
-        _beatCallback(isAccent);
+        // CHANGE: Do NOT fire haptics/LED for subdivisions, to keep feeling clean.
+        if (!isSubdivision) {
+            _beatCallback(isAccent);
+        }
     }
 }
 

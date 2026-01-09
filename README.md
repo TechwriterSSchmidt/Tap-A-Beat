@@ -21,38 +21,33 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 
 ## Features
 
-- **Precise Timing:** Drifts are negligible thanks to a dedicated FreeRTOS Audio Task running on the ESP32's Core 0, decoupled from UI logic.
-- **Natural Sound:** Synthesized "Woodblock" click sound for a pleasant, organic practicing experience with added **Subdivisions** support (8th, 16th, triplets).
-- **Practice Tools:**
-  - **Tempo Trainer:** Automatically increases speed over time to help you break through speed plateaus.
-  - **Practice Timer:** Built-in countdown timer for practice sessions.
-- **Visual Feedback:** 
-  - **OLED:** Large, easy-to-read beat counter with accent framing.
-  - **LED:** WS2812/NeoPixel support (Red=Accent, Blue=Beat).
-- **Haptic Feedback:** Integrated PWM haptic engine for silent practice with distinct accent pulses.
-- **Smart Inputs:** 
-  - **Tap Tempo:** Set BPM by tapping the enclosure (via built-in mic) or clapping.
-  - **Smart Taptronic:** Detects BPM and Time Signature (Metric) by analyzing tap dynamics (accents).
-  - **Encoder:** Debounced rotary control with "Press-and-Turn" volume shortcut.
-- **Tuner:** Full chromatic tuner with adjustable A4 reference (400–480Hz) and AGC (Automatic Gain Control) for stable detection.
-- **Persistence & Presets:** Automatically saves settings; **50 User Presets** organized into **5 Setlists**.
-- **Power Management:** Deep sleep auto-off with wake-on-button.
-
-## Functional Overview
-
-| Feature | Description | Interaction / Control |
+| Category | Feature | Description |
 | :--- | :--- | :--- |
-| **Metronome** | High-precision timing (30-300 BPM) with woodblock sound. | **Turn Encoder**: Adjust BPM.<br>**Short Click**: Play / Stop. |
-| **Tempo Trainer** | Auto-increment BPM. Configurable Start/End/Step/Interval. | **Menu** -> **Trainer**.<br>Edit settings & Toggle Start. |
-| **Subdivisions** | Adds clicks between beats (1/8, 1/3, 1/16). | **Menu** -> **Subdiv**.<br>Select pattern. |
-| **Practice Timer** | Countdown timer (1-60m). | **Menu** -> **Timer**.<br>Set minutes -> Start. |
-| **Volume & Silent Mode** | Adjustable volume. **0**: Silent (Vib+LED). **<0**: Silent (LED Only). | **Push & Turn**: Adjust.<br>**Turn Left at 0**: Disable Vib.<br>**Turn Right**: Enable Vib/Audio. |
-| **Taptronic** | Detects BPM and Metric (e.g. 3/4) by analyzing accents in your tapping. | **Menu** -> **Taptronic**.<br>Tap rhythmically (emphasize "One"). Dynamic threshold adapts to user. |
-| **Tuner** | Chromatic tuner with A4 reference adjustment (400-480Hz). | **Menu** -> **Tuner**.<br>Play note into mic. Encoder adjusts A4 ref. |
-| **Presets** | Save and Load up to 50 complete device configurations. | **Menu** -> **Presets**.<br>Choose **Load/Save** -> Select slot.<br>Displays BPM & Metric. |
-| **Time Signature** | Select from list (e.g. 4/4, 3/4, 5/4, 7/8) with accent on Beat 1. | **Menu** -> **Metric**.<br>Turn to change signature. |
-| **Haptic Feedback** | Physical vibration pulse on every beat. | Always active. Distinct pulse for accents. |
-| **Deep Sleep** | Automatic power saving after inactivity. | **Wake**: Click button.<br>**Sleep**: Auto timeout. |
+| **Timing** | **Precise Engine** | Dedicated FreeRTOS Audio Task on Core 0 ensures negligible drift and rock-solid timing. |
+| **Audio** | **Natural Sound** | Synthesized "Woodblock" click with distinct Pitch for **Downbeats** (Accents) and **Upbeats**. |
+| | **Subdivisions** | Support for **8th**, **16th**, and **Triple** subdivisions. |
+| | **Feedback** | Audio Feedback during Tap-Tempo detection. |
+| **Controls** | **Smart Inputs** | **Encoder** for everything. Press-and-Turn for Volume. Double-Click for Quick Menu. |
+| | **Taptronic** | Tap the case to set BPM. Analyzes accents to detect **Time Signatures** automatically. |
+| **Feedback** | **OLED Display** | Clear 128x128 interface with large beats and accent framing. |
+| | **LED Ring** | WS2812 Support (Red=Accent, Blue=Beat). |
+| | **Vibration** | **Exclusive Haptics:** Separate menu toggle. Motor activates **only at Volume 0** (Silent Practice). |
+| **Tools** | **Tempo Trainer** | Automates speed increases over time (Start/End BPM, Step size, Bar interval). |
+| | **Practice Timer** | Countdown timer (1-60m) for disciplined sessions. |
+| | **Tuner** | Chromatic tuner with A4 reference adjustment (400–480Hz). |
+| **System** | **Presets** | Save/Load **50 User Presets** organized in **5 Setlists**. |
+| | **Power** | **Auto-Off** after 2 minutes of inactivity. **Wake-on-Button**. |
+
+## Functional Overview & Controls
+
+| Feature | Interaction / Control | Note |
+| :--- | :--- | :--- |
+| **Metronome** | **Turn Encoder**: BPM.<br>**Click**: Play/Stop.<br>**Push & Turn**: Volume. | High-precision timing (30-300 BPM). |
+| **Silent Mode** | **Set Volume to 0**.<br>Vibration is active **if enabled** in Menu. | **Vibration Menu**: Toggle ON/OFF.<br>Prevents Vib+Audio simultaneous use. |
+| **Taptronic** | **Menu** -> **Taptronic**.<br>Tap rhythmically. | Now with **Audio Feedback** on detection. |
+| **Quick Menu** | **Double Click** Button. | Fast access to Time Sig, Subdivisions, Presets. |
+| **Preset Save/Load**| **Menu** -> **Presets**.<br>**Hold Click**: Change Setlist. | Stores BPM, Metric, Volume, Tuner settings. |
+| **Tuner** | **Menu** -> **Tuner**.<br>**Click**: Toggle Reference Tone. | Visual flat/sharp indication + Audio Tone. |
 
 ## Hardware Stack
 

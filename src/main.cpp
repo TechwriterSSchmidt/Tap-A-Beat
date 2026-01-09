@@ -143,9 +143,9 @@ TaskHandle_t metronomeTaskHandle = NULL;
 
 // --- Menu Logic -------------------------------------------------------------
 // Updated Menu structure for Features
-const char* menuItems[] = {"Metric", "Subdiv", "Taptronic", "Trainer", "Timer", "Tuner", "Presets", "Exit"};
+const char* menuItems[] = {"Metric", "Subdiv", "Taptronic", "Trainer", "Timer", "Tuner", "Presets", "Vibration", "Exit"};
 int menuSelection = 0;
-int menuCount = 8;
+int menuCount = 9;
 
 
 // Presets Menu
@@ -395,8 +395,8 @@ void setup() {
 
     // Callback handles Haptic + Visuals
     audio.setBeatCallback([](bool accent){
-        // 1. Haptic
-        if (hapticEnabled) {
+        // 1. Haptic (Only if enabled AND volume is 0)
+        if (hapticEnabled && audio.getVolume() == 0) {
             int duty = accent ? hapticAccentDuty : hapticNormalDuty;
             ledc_set_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)HAPTIC_PWM_CH, duty);
             ledc_update_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)HAPTIC_PWM_CH);
@@ -474,10 +474,24 @@ void loop() {
                         currentState = STATE_MENU; // Done
                          
                     } else if (currentState == STATE_METRONOME) {
-                        // Toggle Play/Stop
-                        metronome.isPlaying = !metronome.isPlaying;
-                        if (metronome.isPlaying) metronome.beatCounter = 0;
-                        saveSettings();
+                        // Double Click Logic
+                        if (pendingClicks == 0) {
+                            pendingClicks = 1;
+                            lastClickReleaseTime = now;
+                        } else {
+                            // Double Click Detected
+                            pendingClicks = 0;
+                            currentState = STATE_QUICK_MENU;
+                            quickMenuSelection = 0;
+                            quickMenuEditing = false;
+                        }
+                    } else if (currentState == STATE_QUICK_MENU) {
+                        if (!quickMenuEditing) {
+                            quickMenuEditing = true;
+                        } else {
+                             quickMenuEditing = false;
+                             if(quickMenuSelection == 2) loadPreset(presetSlot);
+                        }
                     } else if (currentState == STATE_MENU) {
                         if (menuSelection == 0) { // Metric
                              currentState = STATE_AM_TIME_SIG;
@@ -504,7 +518,10 @@ void loop() {
                         } else if (menuSelection == 6) { // Presets Menu
                              currentState = STATE_PRESETS_MENU;
                              presetsMenuSelection = 0;
-                        } else if (menuSelection == 7) { // Exit
+                        } else if (menuSelection == 7) { // Vibration
+                             hapticEnabled = !hapticEnabled;
+                             saveSettings();
+                        } else if (menuSelection == 8) { // Exit
                              currentState = STATE_METRONOME;
                         }
                     } else if (currentState == STATE_PRESETS_MENU) {
@@ -607,22 +624,15 @@ void loop() {
                 
                 if (delta > 0) {
                     // Turn Right (Increase)
-                    if (!hapticEnabled) {
-                         hapticEnabled = true; // Re-enable first
-                    } else {
-                         currentVol += delta * 2;
-                         if (currentVol > 100) currentVol = 100;
-                         audio.setVolume(currentVol);
-                    }
+                    currentVol += delta * 2;
+                    if (currentVol > 100) currentVol = 100;
+                    audio.setVolume(currentVol);
                 } else {
                     // Turn Left (Decrease)
                     if (currentVol > 0) {
                          currentVol += delta * 2;
                          if (currentVol < 0) currentVol = 0;
                          audio.setVolume(currentVol);
-                    } else {
-                         // Already at 0, allow disabling haptic
-                         if (hapticEnabled) hapticEnabled = false;
                     }
                 }
                 saveSettings();
@@ -737,6 +747,9 @@ void loop() {
                 // Analyze
                 bool isAccent = (tapCurrentPeak > tapAccentThreshold);
 
+                // Acoustic Feedback
+                audio.playClick(isAccent, false);
+
                 // Check Timeout (Reset if pause too long)
                 // Use tapPeakStartTime as the event time
                 if ((tapPeakStartTime - lastTapTime) > TAP_TIMEOUT) {
@@ -782,6 +795,15 @@ void loop() {
                 lastTapTime = tapPeakStartTime;
             }
         }
+    }
+
+    // Single Click Timeout Logic (Delayed Action)
+    if (pendingClicks == 1 && (now - lastClickReleaseTime > DOUBLE_CLICK_GAP)) {
+        pendingClicks = 0;
+        // Action: Play/Stop
+        metronome.isPlaying = !metronome.isPlaying;
+        if (metronome.isPlaying) metronome.beatCounter = 0;
+        saveSettings();
     }
 
     // 2. Drawing
