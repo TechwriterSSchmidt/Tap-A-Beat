@@ -18,6 +18,7 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 - [User Interface Walkthrough](#user-interface-walkthrough)
 - [Quick Reference Guide (Simplified)](QUICK_REFERENCE_GUIDE.md)
 - [Release Notes (v1.3.0)](RELEASE_NOTES.md)
+- [License](#license)
 
 ## Features
 
@@ -116,3 +117,49 @@ For setting precise values like BPM or Time Signature, the UI switches to a focu
 Make the heart beat! Emphasize the first beat of a bar to automatically set the **Time Signature** (e.g. 3/4). The UI displays "ACC!" for recognized accents. The sensitivity threshold is represented by the heart's outline.
 
 ![Tap Tempo Screen](docs/mockups/screen_tap_tempo.png)
+
+## License
+
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
+
+- **Noncommercial Use**: You may use this software for personal, educational, or evaluation purposes.
+- **Commercial Use Restricted**: You may NOT use this software for commercial purposes (selling, paid services, business use) without prior written consent.
+
+<details>
+<summary>View Full License Text</summary>
+
+### PolyForm Noncommercial License 1.0.0
+
+#### 1. Purpose
+This license allows you to use the software for noncommercial purposes.
+
+#### 2. Agreement
+In order to receive this license, you must agree to its rules. The rules of this license are both obligations (like a contract) and conditions to your license. You must not do anything with this software that triggers a rule that you cannot or will not follow.
+
+#### 3. License Grant
+The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose. However, you may only do so to the extent that such use does not violate the rules.
+
+#### 4. Permitted Purpose
+A purpose is a permitted purpose if it consists of:
+1. Personal use
+2. Evaluation of the software
+3. Development of software using the software as a dependency or evaluation tool
+4. Educational use
+
+**Commercial use is strictly prohibited without prior written consent from the author.**
+
+#### 5. Rules
+
+##### 5.1. Noncommercial Use
+You must not use the software for any commercial purpose. A commercial purpose includes, but is not limited to:
+1. Using the software to provide a service to third parties for a fee.
+2. Selling the software or a derivative work.
+3. Using the software in a commercial environment or business workflow.
+
+##### 5.2. Notices
+You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any copyright notice or other rights notice in the software.
+
+#### 6. Disclaimer
+**THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.**
+
+</details>
